@@ -1,13 +1,24 @@
 #include <stdio.h>
 #include <unistd.h>
+#include "hdmain.h"
 
-void business_logic() {
-    static int counter = 0;
-    printf("Custom business logic running (%d)...\n", ++counter);
-    sleep(5);  // 自定义执行间隔
+// 插件自主控制的业务逻辑
+plugin_status_t plugin_entry(void) {
+    static int count = 0;
+    
+    // 示例业务逻辑
+    printf("Processing business logic (%d)...\n", ++count);
+    sleep(1);
+    
+    // 插件自行决定是否继续
+    if (count >= 10) {
+        printf("Business logic completed\n");
+        return PLUGIN_EXIT;
+    }
+    
+    return PLUGIN_CONTINUE;
 }
 
-// 用于动态加载的宏定义
-#define EXPORT __attribute__((visibility("default")))
-
-EXPORT void business_logic();
+// 必须导出的符号
+__attribute__((visibility("default")))
+plugin_status_t plugin_entry(void);
