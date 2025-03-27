@@ -11,17 +11,17 @@ void handle_signal(int sig) {
 }
 
 int main() {
-    printf("hdlog service started (PID: %d)\n", getpid());
+    printf("hdshell service started (PID: %d)\n", getpid());
     
     signal(SIGTERM, handle_signal);
     
     // 日志服务逻辑
     while (running) {
         time_t now = time(NULL);
-        printf("[%s] Log service heartbeat\n", ctime(&now));
-        sleep(30);
+        printf("Shell service heartbeat\n");
+        sleep(10);
     }
     
-    printf("hdlog service stopped\n");
+    printf("hdshell service stopped\n");
     return 0;
 }

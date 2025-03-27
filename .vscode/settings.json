@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "hd_logger.h": "c",
+        "typeinfo": "c",
+        "hd_service.h": "c"
+    }
+}
