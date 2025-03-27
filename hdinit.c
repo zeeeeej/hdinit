@@ -13,7 +13,7 @@
 
 #define MAX_SERVICES 20
 #define VERSION "1.0.0"
-#define SOCKET_PATH "/tmp/hdinit_socket"
+#define SOCKET_PATH "/tmp/hdinit_socket_2"
 
 typedef struct {
     char name[50];
@@ -121,6 +121,15 @@ int start_service(int index) {
 int stop_service(int index) {
     if (services[index].is_running) {
         if (kill(services[index].pid, SIGTERM) == 0) {
+		sleep(1); // 给子进程时间清理
+		int child_pid = services[index].pid;
+		int status;
+// 检查子进程是否还在运行
+if (waitpid(child_pid, &status, WNOHANG) == 0) {
+    // 如果还在运行，强制终止
+    kill(child_pid, SIGKILL);
+    waitpid(child_pid, &status, 0);
+}
             services[index].is_running = 0;
             return 0;
         } else {
@@ -273,12 +282,16 @@ void show_service_detail(int client_fd, const char *name) {
 void handle_client_command(int client_fd, int argc, char *argv[]) {
     char buffer[1024];
     
+	printf("======hdinit==handle_client_command=====\n");
+		
+
     if (argc < 1) {
         snprintf(buffer, sizeof(buffer), "Usage: hdinit <command> [options]\n");
         write(client_fd, buffer, strlen(buffer));
         return;
     }
     
+	printf("======hdinit==argv[0]%s=====\n",argv[0]);
     if (strcmp(argv[0], "-version") == 0) {
         snprintf(buffer, sizeof(buffer), "hdinit version %s\n", VERSION);
         write(client_fd, buffer, strlen(buffer));

@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,7 +7,7 @@
 #include <sys/un.h>
 
 #define VERSION "1.0.0"
-#define SOCKET_PATH "/tmp/hdinit_socket"
+#define SOCKET_PATH "/tmp/hdinit_socket_2"
 
 void print_help() {
     printf("hdinit commands:\n");
@@ -24,12 +25,14 @@ void print_help() {
 }
 
 int send_command_to_hdinit(int argc, char *argv[]) {
+	printf("======hdshell===send_command_hdinit=argc=%d==\n",argc);
     int sock_fd;
     struct sockaddr_un addr;
     char buffer[1024];
     
     if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         perror("socket error");
+	printf("======hdshell====socket error===\n");
         return -1;
     }
     
@@ -39,20 +42,33 @@ int send_command_to_hdinit(int argc, char *argv[]) {
     
     if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         perror("connect error");
+	printf("======hdshell====connect error===\n");
         close(sock_fd);
         return -1;
     }
     
     // 构建命令字符串
     char cmd[1024] = {0};
-    for (int i = 0; i < argc; i++) {
-        strcat(cmd, argv[i]);
-        if (i < argc - 1) strcat(cmd, " ");
+    if(argc==0){
+	       sprintf(cmd,"hdinit NAN");	
+    }else{
+    
+    
+   	 for (int i = 0; i < argc; i++) {
+       		 strcat(cmd, argv[i]);
+       		 if (i < argc - 1) strcat(cmd, " ");
+   	 }
     }
+    // 设置接收超时为5秒
+struct timeval tv;
+tv.tv_sec = 5;
+tv.tv_usec = 0;
+setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
     
     // 发送命令
     if (write(sock_fd, cmd, strlen(cmd)) == -1) {
         perror("write error");
+	printf("======hdshell===write error====\n");
         close(sock_fd);
         return -1;
     }
@@ -69,14 +85,22 @@ int send_command_to_hdinit(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+
+	printf("======hdshell=======\n");
     // 检查是否以hdinit别名运行
     if (strstr(argv[0], "hdinit") != NULL) {
         // 如果以hdinit别名调用，转发命令给真正的hdinit
-        return send_command_to_hdinit(argc - 1, argv + 1);
+	printf("======hdshell==init=====\n");
+        int ret =  send_command_to_hdinit(argc - 1, argv + 1);
+	printf("======hdshell==init=result:%d====\n",ret);
+	return ret;
     }
     
+	printf("======hdshell==2=====\n");
     // 正常hdshell交互模式
     if (argc > 1) {
+
+	printf("======hdshell===3====\n");
         return send_command_to_hdinit(argc - 1, argv + 1);
     }
     
