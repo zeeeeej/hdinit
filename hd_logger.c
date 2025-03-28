@@ -53,7 +53,7 @@ void hd_logger_print(HDLoggerLevel level, const char* tag, const char* msg, ...)
     get_time_string(time_buffer, sizeof(time_buffer));
     
     // 打印日志头
-    fprintf(stderr, "%s [%s] [%s] ", time_buffer, get_level_string(level), tag);
+    fprintf(stderr, "%s [%s] [%-8s] ", time_buffer, get_level_string(level), tag);
     
     // 打印日志内容
     va_list args;
@@ -65,7 +65,7 @@ void hd_logger_print(HDLoggerLevel level, const char* tag, const char* msg, ...)
     // fprintf(stderr, "\n");
     
     // 如果是FATAL级别，退出程序
-    if (level == HD_LOGGER_LEVEL_FATAL) {
-        exit(EXIT_FAILURE);
-    }
+    //if (level == HD_LOGGER_LEVEL_FATAL) {
+    //    exit(EXIT_FAILURE);
+    //}
 }

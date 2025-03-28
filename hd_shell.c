@@ -3,25 +3,27 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/types.h>
+#include "hd_logger.h"
 
 volatile sig_atomic_t running = 1;
 
 void handle_signal(int sig) {
+    HD_LOGGER_INFO("hdshell",">>> Shell service handle_signal (PID: %d) sig=%d\n", getpid(),sig);
     running = 0;
 }
 
 int main() {
-    printf("hdshell service started (PID: %d)\n", getpid());
+    HD_LOGGER_INFO("hdshell",">>> Shell service started (PID: %d)\n", getpid());
     
     signal(SIGTERM, handle_signal);
-    
+    int index = 0;
     // 日志服务逻辑
     while (running) {
         time_t now = time(NULL);
-        printf("Shell service heartbeat\n");
-        sleep(10);
+        HD_LOGGER_INFO("hdshell",">>> Shell service heartbeat:%d\n", index++);
+        sleep(4);
     }
     
-    printf("hdshell service stopped\n");
+    HD_LOGGER_INFO("hdshell",">>> Shell service stopped !!!\n");
     return 0;
 }

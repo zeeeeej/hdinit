@@ -1,9 +1,8 @@
-#include "hd_service.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <time.h>
+#include "hd_service.h"
 
 #define PRINT_PRETTY 1
 
@@ -42,11 +41,13 @@ void hd_service_print(const HDService *svc) {
     }
 }
 
-static void hd_service_array_print_pretty(const HDServiceArray *sa) ;
+static void hd_service_array_print_pretty(const HDServiceArray *sa, char * const result) ;
 // 打印所有服务信息
 void hd_service_array_print(const HDServiceArray *sa) {
+    char result[2048];
     if (PRINT_PRETTY){
-        hd_service_array_print_pretty(sa);
+        hd_service_array_print_pretty(sa,result);
+        printf("%s",result);
         return;
     }
     if (sa == NULL) {
@@ -62,14 +63,52 @@ void hd_service_array_print(const HDServiceArray *sa) {
     }
 }
 
-static void hd_service_array_print_pretty(const HDServiceArray *sa) {
+static void hd_service_array_print_pretty(const HDServiceArray *sa, char * const result) {
+    if (sa == NULL || result == NULL) {
+        if (result) strcpy(result, "Service array is null\n");
+        return;
+    }
+
+    char buffer[2048];
+    char temp[2048];
+    result[0] = '\0'; // 清空结果字符串
+
+    // 添加标题行
+    snprintf(temp, sizeof(temp), "\n-------HDServiceArray[%d]-------\n", sa->count);
+    strcat(result, temp);
+
+    snprintf(temp, sizeof(temp), "%-10s %-10s %-10s %-10s %-10s %s\n", 
+            "[NAME]", "[PID]", "[STATUS]", "[VERSION]", "[TYPE]", "[PATH]");
+    strcat(result, temp);
+
+    // 添加每个服务的信息
+    const HDService *service;
+    for (int i = 0; i < sa->count; i++) {
+        service = &(sa->services[i]);
+        snprintf(buffer, sizeof(buffer), 
+                "%-10s %-10d %-10s %-10s %-10s %s %p\n", 
+                service->name, 
+                service->pid, 
+                service->is_running ? "RUNNING" : "STOPPED",
+                service->version == NULL ? "-" : service->version,
+                service->is_main ? "MAIN" : (service->is_secondary ? "SECONDARY" : "OTHER"),
+                service->path,
+                service);
+        strcat(result, buffer);
+    }
+
+    strcat(result, "\n"); // 添加结尾换行
+}
+
+static void hd_service_array_print_pretty_old(const HDServiceArray *sa) {
     if (sa == NULL) {
         printf("Service array is null\n");
         return;
     }
+    printf("\n");
     printf("-------HDServiceArray[%d]-------\n",sa->count);
     char buffer[2048];
-    snprintf(buffer, sizeof(buffer), "%-9s %-8s %-8s %-10s %-8s %s\n", "[NAME]","[PID]", "[STATUS]", "[VERSION]","[TYPE]", "[PATH]");
+    snprintf(buffer, sizeof(buffer), "%-10s %-10s %-10s %-10s %-10s %s\n", "[NAME]","[PID]", "[STATUS]", "[VERSION]","[TYPE]", "[PATH]");
     printf("%s",buffer);
     const HDService *service;
     for (int i = 0; i < sa->count; i++) {
@@ -77,21 +116,19 @@ static void hd_service_array_print_pretty(const HDServiceArray *sa) {
         snprintf(
             buffer, 
             sizeof(buffer), 
-            "%-9s %-8d %-8s %-10s %-8s %s\n", 
+            "%-10s %-10d %-10s %-10s %-10s %s %p\n", 
             service->name, 
             service->pid, 
             service->is_running ? "RUNNING" : "STOPPED",
             service->version==NULL?"-":service->version ,
             service->is_main ? "MAIN" : (service->is_secondary ? "SECONDARY" : "OTHER"),
-            service->path
-
-
-
-
-
+            service->path,
+            service
             );
             printf("%s",buffer);
+          
     }
+    printf("\n");
  
 
 }

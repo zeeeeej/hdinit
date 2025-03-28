@@ -58,4 +58,6 @@ int hd_service_array_remove_by_index(HDServiceArray *sa, int index);
 // 检查服务依赖是否满足
 int hd_service_check_dependencies(const HDServiceArray *sa, const HDService *svc);
 
+void hd_service_array_cleanup(HDServiceArray *sa) ;
+
 #endif // __HD_SERVICE__
