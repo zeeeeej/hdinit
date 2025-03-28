@@ -16,6 +16,7 @@ int main() {
     HD_LOGGER_INFO("hdlog",">>> Log service started (PID: %d)\n", getpid());
     
     signal(SIGTERM, handle_signal);
+    //signal(SIGKILL, handle_signal);
     int index = 0;
     // 日志服务逻辑
     while (running) {

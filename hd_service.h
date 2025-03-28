@@ -9,6 +9,10 @@
 #define MAX_SERVICE_DEPENDS 5
 #define MAX_SERVICES 20
 
+#define RUNNING "RUNNING" 
+#define STOPPED "STOPPED"
+#define HD_SERVICE_RUNNING_TEXT(is_running) ((is_running) ? RUNNING : STOPPED)
+
 typedef struct {
     char name[LEN_SERVICE_NAME];
     char path[LEN_SERVICE_PATH];

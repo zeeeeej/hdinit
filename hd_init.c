@@ -12,6 +12,7 @@
 
 
 
+#define SPIT ""
 #define TAG "hdinit"
 #define DEBUG 0
 #define DEBUG_LOCAL_PATH 1
@@ -79,7 +80,7 @@ void *wait_child_exit_thread(void *arg)
     //hd_service_array_print(&g_service_array);
     Wait_Child_Exit_Thread_Args *args = (Wait_Child_Exit_Thread_Args *)arg;
     pthread_t current_tid = pthread_self();
-    HD_LOGGER_DEBUG(TAG, "@wait_child_exit_thread arg=%s p:%p [%lu]\n", args->service->name, args->service,(unsigned long)current_tid);
+    HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread arg=%s p:%p [%lu]\n",SPIT, args->service->name, args->service,(unsigned long)current_tid);
     hd_service_array_print(&g_service_array);
      HDService *service = args->service;//hd_service_array_find_by_name(&g_service_array, args->service_name);
     if (service==NULL)
@@ -93,22 +94,22 @@ void *wait_child_exit_thread(void *arg)
     pid_t pid = service->pid;
     free(args);
 
-    HD_LOGGER_DEBUG(TAG, "@wait_child_exit_thread[%s:%s][%d/%d] wait exit ... \n", s_name, s_path, getpid(), pid);
+    HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d] wait exit ... \n",SPIT, s_name, s_path, getpid(), pid);
     
     int status;
    
     waitpid(pid, &status, 0); // 等待子进程结束
 
-    HD_LOGGER_DEBUG(TAG, "@wait_child_exit_thread[%s:%s][%d/%d]exited with status <%d|%d>\n", s_name, s_path, getpid(), pid, status, WEXITSTATUS(status));
+    HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d]exited with status <%d|%d>\n",SPIT, s_name, s_path, getpid(), pid, status, WEXITSTATUS(status));
     
     if (WIFEXITED(status))
     {
         if (WEXITSTATUS(status) == ERROR_CHILD_START_FAIL )
         {
-            HD_LOGGER_DEBUG(TAG, "@wait_child_exit_thread[%s:%s][%d/%d] child execl() failed! %d \n", s_name, s_path, getpid(),pid,start_main_service_count);
+            HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d] child execl() failed! %d \n",SPIT, s_name, s_path, getpid(),pid,start_main_service_count);
             if (strcmp(s_name ,HD_INIT_SERVICE_MAIN)==0)
             {
-                HD_LOGGER_DEBUG(TAG, "@wait_child_exit_thread[%s:%s][%d/%d] hdmain execl() failed!start_main_service_count++ %d \n", s_name, s_path, getpid(),pid,start_main_service_count);
+                HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d] hdmain execl() failed!start_main_service_count++ %d \n", SPIT,s_name, s_path, getpid(),pid,start_main_service_count);
                 start_main_service_count++;
             }
         }
@@ -197,6 +198,7 @@ static int init_core_services()
         .is_secondary = 0,
         .is_registered = 1,
         .depends_on_count = 1,
+        .version = "0.0.0",
         .depends_on = {HD_INIT_SERVICE_LOG}};
     hd_service_array_add(&g_service_array, &main_service);
 
@@ -209,6 +211,7 @@ static int init_core_services()
         .is_secondary = 1,
         .is_registered = 1,
         .depends_on_count = 1,
+        .version = "0.0.0",
         .depends_on = {}};
     hd_service_array_add(&g_service_array, &log_service);
 
@@ -295,7 +298,13 @@ static int start_core_services()
     return 0;
 }
 
-static int check_service_update_internal(HDService *service)
+static int op_check_service_update_internal(HDService *service)
+{
+
+    return 0;
+}
+
+static int op_update_service_internal(HDService *service)
 {
 
     return 0;
@@ -304,7 +313,7 @@ static int check_service_update_internal(HDService *service)
 /**
  * 停止服务
  */
-static int do_stop_service_internal(const HDService *service)
+static int op_stop_service_internal(const HDService *service)
 {
     if (service == NULL)
     {
@@ -313,7 +322,7 @@ static int do_stop_service_internal(const HDService *service)
     const char *s_name = service->name;
     const char *s_path = service->path;
     pid_t child_pid = service->pid;
-    HD_LOGGER_ERROR(TAG, "do_stop_service_internal : %s %s ......\n", s_name, s_path);
+    HD_LOGGER_ERROR(TAG, "op_stop_service_internal : %s %s ......\n", s_name, s_path);
     if (service->is_running)
     {
         if (kill(child_pid, SIGTERM) == 0)
@@ -345,8 +354,9 @@ static int do_stop_service_internal(const HDService *service)
  */
 static int do_stop_service_by_name(const char *service_name){
     HDService *service = hd_service_array_find_by_name(&g_service_array, service_name);
-    return do_stop_service_internal(service);
+    return op_stop_service_internal(service);
 }
+
 
 /**
  * 停止所有服务
@@ -357,7 +367,7 @@ static void opt_reboot_internal(){
     sync();  // 确保数据写入磁盘
     sleep(1);
     for(int i=0;i<g_service_array.count;i++){
-        do_stop_service_internal(&g_service_array.services[i]);
+        op_stop_service_internal(&g_service_array.services[i]);
     }
     service_manager_running = 0;
 
@@ -365,12 +375,22 @@ static void opt_reboot_internal(){
 }
 
 /**
+ * 处理重启信号
+ */
+void signal_handle_reboot(int sig) {
+    HD_LOGGER_INFO("hdlog",">>>>> signal_handle_reboot <<<<<< \n");
+    opt_reboot_internal();
+}
+
+/**
  * 检测服务状态
  */
-static void monitor_services()
-{
+static void monitor_services(){
+
+
     if (start_main_service_count>MAX_RESTART_MAIN)
     {
+        // todo 发出重启信号
         opt_reboot_internal();
         return;
     }
@@ -378,13 +398,13 @@ static void monitor_services()
 
     for (int i = 0; i < g_service_array.count; i++)
     {
-        HDService *service = g_service_array.services+i;
+        HDService *service = g_service_array.services+i; 
         
-        if (!service->is_running)
-        {
-            HD_LOGGER_DEBUG(TAG, "<monitor_services> [%s]%d %p ... \n",service->name,service->is_running,service);
+        // if (!service->is_running)
+        // {
+            HD_LOGGER_DEBUG(TAG, "%-8s#monitor_services# [%s] %s ... \n",SPIT,service->name,HD_SERVICE_RUNNING_TEXT(service->is_running));
             if (kill(service->pid, 0) != 0)
-            {                            // 检查进程是否存在
+            {
                 service->is_running = 0;  // 标记服务为"未运行"
                 op_start_service_internal(service); // 重新启动服务
             }else{
@@ -393,19 +413,51 @@ static void monitor_services()
                     start_main_service_count=0;
                 }
             }
+        // }else{
 
-            if (check_service_update_internal(service))
-            {
-                do_stop_service_internal(service);
-                op_start_service_internal(service);
-            }
-        }else{
+        // }
+    }
+}
 
+/**
+ * 检测服务升级
+ */
+static void upgrade_services(){
+    for (int i = 0; i < g_service_array.count; i++)
+    {
+        HDService *service = g_service_array.services+i;    
+        HD_LOGGER_DEBUG(TAG, "%-8s#upgrade_services# [%s] version:%s ... \n",SPIT,service->name,service->version);
+        if (op_check_service_update_internal(service)!=0)
+        {
+            op_stop_service_internal(service);
+            op_update_service_internal(service);
+            op_start_service_internal(service);
         }
     }
 }
 
+void * monitor_thread_services_thread(void * arg){
+    /* 开始循环 检测核心服务是否运行 */
+    while (service_manager_running)
+    {
+        sleep(MONITOR_SERVICES_INTERVAL);
+        HD_LOGGER_INFO(TAG, "#monitor_services# %d-%d ... \n",start_main_service_count,service_manager_running);
+        monitor_services();
+        service_manager_running_count++;
+    }
+    return NULL;
+}
 
+void * upgrade_thread_services_thread(void * arg){
+    /* 开始循环 检测核心服务是否需要升级 */
+    while (service_manager_running)
+    {
+        sleep(MONITOR_SERVICES_INTERVAL);
+        HD_LOGGER_INFO(TAG, "#upgrade_services# ... \n");
+        upgrade_services();
+    }
+    return NULL;
+}
 
 
 /**
@@ -451,14 +503,20 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* 开始循环 检测核心服务是否运行 */
-    while (service_manager_running)
-    {
-        sleep(MONITOR_SERVICES_INTERVAL);
-        HD_LOGGER_INFO(TAG, "#monitor_services# %d-%d ... \n",start_main_service_count,service_manager_running);
-        monitor_services();
-        service_manager_running_count++;
-    }
+
+
+
+    HD_LOGGER_INFO(TAG, "monitor_services_thread_t started !!! \n");
+    pthread_t monitor_services_thread_t;
+    pthread_create(&monitor_services_thread_t,NULL,monitor_thread_services_thread,NULL);
+    HD_LOGGER_INFO(TAG, "upgrade_services_thread_t started !!! \n");
+    pthread_t upgrade_services_thread_t;
+    pthread_create(&upgrade_services_thread_t,NULL,upgrade_thread_services_thread,NULL);
+
+    pthread_join(monitor_services_thread_t,NULL);
+    HD_LOGGER_INFO(TAG, "monitor_services_thread_t end !!! \n");
+    pthread_join(upgrade_services_thread_t,NULL);
+    HD_LOGGER_INFO(TAG, "upgrade_services_thread_t end !!! \n");
 
     HD_LOGGER_INFO(TAG, "end! \n");
 
