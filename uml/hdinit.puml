@@ -1,0 +1,387 @@
+@startuml
+!include lib_eventstorming.puml
+
+Command("RemoveServiceCommand") [
+    删除服务
+    --field--
+    *service_name
+    --rule--
+    1.删除成功，发布服务已删除。
+    --event--
+    服务已删除 ServiceRemovedEvent
+]
+
+Command("AddServiceCommand") [
+    添加服务
+    --field--
+    *服务
+    --rule--
+    1.查看是否存在，存在不添加。
+    2.添加成功，发布产品已添加。
+    --event--
+    服务已成功 ServiceAddedEvent
+]
+
+Command("StartServiceCommand") [
+    启动服务
+    --field--
+    *service_name
+    --rule--
+    1.启动服务成功，发布服务已启动。
+    2.查看是否启动，否则启动服务。
+    --event--
+    服务已启动 ServiceStartedEvent
+]
+
+Command("StopServiceCommand") [
+    停止服务
+    --field--
+    *service_name
+    payload
+    --rule--
+    1.停止服务成功，发布服务已停止。
+    2.查看是否停止，否则停止服务。
+    --event--
+    服务已停止 ServiceStoptedEvent
+]
+
+Command("InitCoreServiceCommand") [
+    初始化核心服务并启动
+    --field--
+    *
+    payload
+    --rule--
+    1.- 此进程(以后统称hdinit)，启动后会fork一个新进程作为主服务（以后统称hdmain）承担主业务，以及若干个次服务（以后统称hdsecondary）来辅助hdmain的业务功能和一些日志功能等。
+    --event--
+    核心服务已初始化 CoreServiceInitedEvent
+]
+
+Command("MonitorServiceCommand") [
+    监控服务任务
+    --field--
+    *无
+    --rule--
+    1.需要对hdmain和hdsecondary进行监听，如果服务崩溃了不运行了，需要重新让其运行。
+    --event--
+    监控已开启 MonitorStartedEvent
+]
+
+
+Command("UpgradeServiceCommand") [
+    更新服务任务
+    --field--
+    *无
+    payload
+    --rule--
+    1.- hdinit需要对hdmain和hdsecondary进行版本检查，如果有新的版本，则先停止服务，然后再启动。
+    --event--
+    更新已开启 UpgradeStartedEvent
+]
+
+Command("StartUpgradeCommand") [
+    开启升级服务
+    --field--
+    *service_name
+    升级信息
+    --rule--
+    1.升级服务
+    --event--
+    升级服务已开启 UpgradeStartedCommandEvent
+]
+
+Command("AddLogCommand") [
+    添加日志
+    --field--
+    *日志
+    --rule--
+    1.添加日志
+    --event--
+    日志已添加 LogAddedEvent
+]
+
+Command("RemoveLogCommand") [
+     删除日志
+    --field--
+    *日志id
+    --rule--
+    1.删除日志
+    --event--
+    日志已删除 LogRemovedEvent
+]
+
+
+
+DomainEvent("ServiceRemovedEvent") [
+    服务已删除
+    --field--
+    服务名称
+]
+
+DomainEvent("ServiceAddedEvent") [
+    服务已添加
+    --field--
+    服务名称
+]
+
+DomainEvent("ServiceStartedEvent") [
+    服务已开启
+    --field--
+    服务名称
+]
+
+DomainEvent("ServiceStoptedEvent") [
+    服务已停止
+    --field--
+    服务名称
+]
+
+DomainEvent("CoreServiceInitedEvent") [
+    核心服务已启动
+    --field--
+    服务列表
+]
+
+DomainEvent("MonitorStartedEvent") [
+    监控线程已开启
+    --field--
+    线程ID
+]
+
+DomainEvent("UpgradeEvent") [
+    需要升级
+    --field--
+    服务
+]
+
+DomainEvent("MonitorEvent") [
+    需要升级
+    --field--
+    服务
+]
+
+DomainEvent("UpgradeStartedEvent") [
+    升级线程已开启
+    --field--
+    线程ID
+]
+
+DomainEvent("UpgradeStartedCommandEvent") [
+    服务升级已开启
+    --field--
+    service_name
+]
+
+DomainEvent("LogAddedEvent") [
+    日志已添加
+    --field--
+    日志
+]
+
+DomainEvent("LogRemovedEvent") [
+    服务已删除
+    --field--
+    日志
+]
+
+
+Aggregate("hdinit")[
+    hdinit 服务管理
+    --field--
+    服务列表
+    正在运行
+    正在进行监控
+    正在进行升级
+    监控thread
+    运行thread
+    版本
+    --method--
+    所有服务列表
+    添加服务
+    删除服务
+    初始化核心服务
+    开始监控
+    开始升级
+    查看版本
+    查看服务详情
+]
+
+Aggregate("hdshell") [
+    shell
+    --method--
+    查看版本
+    启动服务
+    停止服务
+    添加服务
+    删除服务
+    服务列表
+    查看服务详情
+]
+
+
+
+Aggregate("hdlog") [
+    日志记录
+    
+    --method--
+    添加日志
+    删除日志
+    清空
+]
+
+
+
+
+Policy("AutoInitPolicy") [
+    触发
+    --rule--
+    1.系统初始化启动hdinit
+]
+
+Policy("UpgradePolicy") [
+    触发升级
+    --field--
+      服务
+    --rule--
+    1.触发升级任务
+]
+
+Policy("MonitorPolicy") [
+    触发重启
+    --field--
+      服务
+    --rule--
+    1.触发重启
+]
+
+Policy("LogPolicy") [
+    产生日志
+    --field--
+      日志
+    --rule--
+    1.日志
+]
+
+Service("IPCReqService") [
+    ipc通信 req
+    --field--
+    命令
+    --rule--
+    1.ipc通信请求
+]
+
+Service("IPCRespService") [
+    ipc通信 resp
+    --field--
+    数据
+    --rule--
+    1.ipc通信返回
+]
+
+
+ReadModel("HDService") [
+    服务
+    --id--
+    服务名称
+    --field--
+    服务名称
+    服务path
+    版本
+    运行状态
+    服务类别
+    服务依赖[]
+    服务依赖数
+    服务进程号
+    --method--
+    
+]
+
+
+ReadModel("HDServiceList") [
+    服务列表
+    --field--
+    服务大小
+    服务列表
+]
+
+ReadModel("HDLogList") [
+    日志列表
+    --field--
+    日志大小
+    日志列表
+]
+
+
+
+
+
+
+Person("Init") [
+   系统启动
+]
+
+Person("Shell") [
+   hdshell
+]
+
+
+RemoveServiceCommand--down-->hdinit
+AddServiceCommand--down-->hdinit
+StartServiceCommand--down-->hdinit
+StopServiceCommand--down-->hdinit
+InitCoreServiceCommand--down-->hdinit
+MonitorServiceCommand--down-->hdinit
+UpgradeServiceCommand--down-->hdinit
+StartUpgradeCommand--down-->hdinit
+
+hdinit-->ServiceRemovedEvent
+hdinit-->ServiceAddedEvent
+hdinit-->ServiceStartedEvent
+hdinit-->ServiceStoptedEvent
+hdinit-->CoreServiceInitedEvent
+hdinit-->MonitorStartedEvent
+hdinit-->UpgradeStartedEvent
+hdinit-->UpgradeStartedCommandEvent
+hdinit-->UpgradeEvent
+hdinit-->MonitorEvent
+
+AddLogCommand--down-->hdlog
+RemoveLogCommand--down-->hdlog
+hdlog-->LogAddedEvent
+hdlog-->LogRemovedEvent
+
+LogRemovedEvent-->HDLogList
+LogAddedEvent-->HDLogList
+
+
+ServiceRemovedEvent--down-->HDServiceList
+ServiceAddedEvent--down-->HDServiceList
+ServiceStartedEvent--down-->HDServiceList
+ServiceStoptedEvent--down-->HDServiceList
+CoreServiceInitedEvent--down-->HDServiceList
+
+
+Init--down-->AutoInitPolicy
+AutoInitPolicy-->InitCoreServiceCommand
+AutoInitPolicy-->MonitorServiceCommand
+AutoInitPolicy-->UpgradeServiceCommand
+
+Shell-->hdshell
+hdshell-->IPCReqService
+IPCReqService--down-->hdinit
+hdinit--down-->IPCRespService
+IPCRespService--down-->hdshell
+hdshell--down-->HDServiceList
+hdshell--down-->HDService
+
+hdinit--down-->LogPolicy
+LogPolicy-->AddLogCommand
+
+UpgradeEvent-->UpgradePolicy
+UpgradePolicy-->StartUpgradeCommand
+MonitorEvent-->MonitorPolicy
+MonitorPolicy-->StartServiceCommand
+
+
+
+
+@enduml
