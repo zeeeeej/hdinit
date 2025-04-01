@@ -5,6 +5,11 @@
         "hd_service.h": "c",
         "unistd.h": "c",
         "hd_utils.h": "c",
-        "stat.h": "c"
+        "stat.h": "c",
+        "stdlib.h": "c",
+        "time.h": "c",
+        "string.h": "c",
+        "socket.h": "c",
+        "ostream": "c"
     }
 }

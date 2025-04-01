@@ -10,7 +10,6 @@ int main() {
     HDService svc1 = {
         .name = "network",
         .path = "/usr/bin/networkd",
-        .is_main = 1,
         .depends_on_count = 1,
         .depends_on = {"logging"}
     };
@@ -18,7 +17,6 @@ int main() {
     HDService svc2 = {
         .name = "logging",
         .path = "/usr/bin/loggingd",
-        .is_main = 1
     };
 
     hd_service_array_add(&sa, &svc2);
@@ -30,7 +28,6 @@ int main() {
     HDService svc3 = {
         .name = "xxxx",
         .path = "/usr/bin/xxxx",
-        .is_main = 1,
         .version = "1.0.0"
     };
     hd_service_array_add(&sa, &svc3);
@@ -41,13 +38,12 @@ int main() {
     HDService *service2 = sa.services+1;
     printf(" %p %p %p \n",&service1,service2,&(sa.services[1]));
 
-    HDService * pt_1 = sa.services+1;
-    HDService * pt_2 = &(sa.services[1]);
-    HDService * pt_3 = &*(sa.services+1);
+    printf("%p \n",sa.services+1);
+    printf("%p \n",&(sa.services[1]));
+    printf("%p \n",&*(sa.services+1));
 
-    printf("%p \n",pt_1);
-    printf("%p \n",pt_2);
-    printf("%p \n",pt_3);
+    HDService *service4 = hd_service_array_find_by_name(&sa,"logging");
+    printf("find logging result is %s %s \n",service4->name,service4->path);
 
     return 0;
 }
