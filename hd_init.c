@@ -14,12 +14,14 @@
 #include "hd_logger.h"
 #include "hd_utils.h"
 #include "hd_ipc.h"
+#include "hd_http.h"
+#include "hd_utils.h"
 
 #define PREFIX "######"
 
 static void opt_reboot_internal();
 static int op_stop_service_internal( HDService *service);
-static int op_check_service_update_internal(HDService *service);
+static int op_check_service_update_internal(HDService *service,hd_http_check_resp *resp);
 static void hd_init_exit();
 
 typedef struct
@@ -146,11 +148,16 @@ static int op_start_service_internal( HDService *service)
     }
     else
     {
+
+        if (!service_manager_running)
+        {
+            return -1;
+        }
         // 父进程分支
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s] Parent:[%d/%d]! \n", start_name, start_path, getpid(), pid);
         service->status = HD_SERVICE_STATUS_STARTTING;
         service->pid = pid;
-        service->last_modified = get_last_modified(start_path);
+        service->last_modified = hd_get_last_modified(start_path);
 
         // 开启线程监听子进程结束 TODO 处理线程生命周期
         pthread_t wait_child_exit_thread_t;
@@ -180,6 +187,7 @@ static int op_start_service_internal( HDService *service)
                 if (service->pid == s_id){
                     stpncpy(service->version,s_version,strlen(s_version));
                     service->status = HD_SERVICE_STATUS_STARTED;
+                    service->update = 0;
                     HD_LOGGER_ERROR(TAG,"op_start_service_internal %s SERVICE-STARTED!!! %s %s\n", s_name,PREFIX,PREFIX);
                     hd_service_array_print(&g_service_array);
                     kill(s_id,SIGUSR1);
@@ -249,7 +257,7 @@ static int init_core_services()
 }
 
 static void ipc_list_services(int client_fd) {
-    char buffer  [1024] ;
+    char buffer  [2048] ;
     hd_service_array_print_result(&g_service_array,buffer);
     write(client_fd, buffer, strlen(buffer));
 }
@@ -362,8 +370,8 @@ void handle_client_command(int client_fd, int argc, const char *argv[]) {
             write(client_fd, buffer, strlen(buffer));
             return;
         }
-
-        if (op_check_service_update_internal(service)!=0) {
+        hd_http_check_resp resp;
+        if (op_check_service_update_internal(service,&resp)!=0) {
             snprintf(buffer, sizeof(buffer), "Service %s has updates\n", argv[1]);
         } else {
             snprintf(buffer, sizeof(buffer), "Service %s is up to date\n", argv[1]);
@@ -559,13 +567,27 @@ static int start_core_services()
     return 0;
 }
 
-static int op_check_service_update_internal(HDService *service)
+static int op_check_service_update_internal(HDService *service, hd_http_check_resp * resp)
 {
+    /* 服务器version */
+    if (hd_http_check_update(service->name, resp) != 0) {
+        HD_LOGGER_INFO(TAG,"无需更新 %s",service->name);
+        return -1;
+    } 
 
-    return 0;
+    HD_LOGGER_INFO(TAG,"Update available:\n");
+    HD_LOGGER_INFO(TAG,"URL:        %s\n", resp->url);
+    HD_LOGGER_INFO(TAG,"Version:    %s\n", resp->version);
+    HD_LOGGER_INFO(TAG,"MD5:        %s\n", resp->md5);
+    HD_LOGGER_INFO(TAG,"Filename:   %s\n", resp->filename);
+
+    /* 当前version */
+    int ret = strcmp(resp->version,service->version) > 0;
+    HD_LOGGER_INFO(TAG,"Current Version:  [%s > %s = %d]\n", resp->version,service->version,ret);
+    return ret;
 }
 
-static int op_update_service_internal(HDService *service)
+static int op_update_service_internal(HDService *service,char * todo_path)
 {
 
     return 0;
@@ -587,6 +609,7 @@ static int op_stop_service_internal( HDService *service)
     if (HD_SERVICE_STATUS_STARTED == service->status || HD_SERVICE_STATUS_STARTTING == service->status)
     {
         service->status = HD_SERVICE_STATUS_STOPPING;
+        kill(service->pid,SIGUSR2);
         if (kill(child_pid, SIGTERM) == 0)
         {
             sleep(1); // 给子进程时间清理
@@ -661,7 +684,7 @@ static void monitor_services(){
     {
         HDService *service = g_service_array.services+i; 
         
-        if (service->status == HD_SERVICE_STATUS_STOPPED)
+        if (service->status == HD_SERVICE_STATUS_STOPPED && service->update== 0)
         {
             if (!service_manager_running)
             {
@@ -676,21 +699,80 @@ static void monitor_services(){
     }
 }
 
+void progress_callback(int *progress) {
+    printf("Download progress: %d%%\n", *progress);
+}
+
 /**
  * 检测服务升级
  */
 static void upgrade_services(){
+    if (!service_manager_running)
+    {
+        return;
+    }
+    
+    /* 服务器version */
+    hd_http_check_resp resp;
+    char buff[1024];
+    char oldPath[1024];
+    char tmp[1024];
+    int ret;
     for (int i = 0; i < g_service_array.count; i++)
     {
-        HDService *service = g_service_array.services+i;    
-        HD_LOGGER_DEBUG(TAG, "%-8s#upgrade_services# [%s] version:%s ... \n",SPIT,service->name,service->version);
-        if (op_check_service_update_internal(service)!=0)
+        if (!service_manager_running)
         {
-            op_stop_service_internal(service);
-            op_update_service_internal(service);
-            op_start_service_internal(service);
+            return;
+        }
+        HDService *service = g_service_array.services+i;    
+        if (service->update)
+        {
+            return;
+        }
+        HD_LOGGER_DEBUG(TAG, "%-8s#upgrade_services# [%s] version:%s ... \n",SPIT,service->name,service->version);
+        if (op_check_service_update_internal(service,&resp)>0)
+        {
+            HD_LOGGER_INFO(TAG, "%s need update ！ %s->%s\n",service->name,service->version,resp.version);
+            snprintf(buff, 1024, "%s/ota/%s", HD_INIT_ROOT,resp.filename);
+            ret = hd_http_download(resp.url, buff, progress_callback);
+            // {
+            //      "md5": "4da0413eeeb4e45661cc7f6fa4a1bdc5",
+            //      "url": "http://127.0.0.1:5000/files/hdmain-0.0.2",
+            //      "version": "0.0.2"
+            // }
+            if (ret==0)
+            {
+                HD_LOGGER_INFO(TAG, "%s download success from [%s] ！file path is :[%s] \n",service->name,resp.url,buff);
+                /* 备份老的程序 */
+                snprintf(oldPath, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
+                ret = hd_cp_file(service->path,oldPath);
+                if (ret)
+                {
+                    HD_LOGGER_INFO(TAG, "bakup fail! %s \n",service->name);
+                    continue;
+                }
+                
+                /* 复制新程序   */
+                ret = hd_cp_file(buff,service->path);
+                if (ret)
+                {
+                    HD_LOGGER_INFO(TAG, "update fail! %s \n",service->name);
+                    continue;
+                }
+                service->update = 1;
+               
+                /* 停止服务 */
+                op_stop_service_internal(service);
+                /* 启动服务 */
+                sleep(5);
+                op_start_service_internal(service);
+                // service->update = 0;
+            } else {
+                HD_LOGGER_INFO(TAG, "%s download fail ！ %s\n",service->name,resp.url);
+            }
         }
     }
+    
 }
 
 void * monitor_thread_services_thread(void * arg){
@@ -736,13 +818,14 @@ static void hd_init_sigint_handler(int sig){
 }
 
 /**
- *  gcc hd_init.c hd_logger.c hd_service.c -o hd_init -lpthread
+ *  gcc hd_init.c hd_logger.c hd_utils.c hd_service.c -o hd_init -lpthread hd_http.c ./cJSON.c -lcurl
  */
 int main(int argc, char const *argv[])
 {
     /*[注册信号]*/
     signal(SIGINT, hd_init_sigint_handler);  // 注册信号处理器 ctrl + c
     signal(SIGTSTP, hd_init_sigint_handler);  // 注册信号处理器 ctrl + z
+    signal(SIGKILL, hd_init_sigint_handler);  // kill -9
 
     hd_logger_set_level(HD_LOGGER_LEVEL_INFO);
 

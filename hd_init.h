@@ -14,6 +14,12 @@
 #define MAX_RESTART_MAIN 10
 #define ERROR_CHILD_START_FAIL 99
 
+#if DEBUG_LOCAL_PATH
+#define HD_INIT_ROOT "./.hdinit"
+#else
+#define HD_INIT_ROOT "/root/.hdinit"
+#endif
+
 #define HD_INIT_SERVICE_MAIN "hdmain"
 #if DEBUG_LOCAL_PATH
 #define HD_INIT_SERVICE_MAIN_PATH "./hdmain"

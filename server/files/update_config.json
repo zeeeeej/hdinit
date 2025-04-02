@@ -1,10 +1,10 @@
 {
   "hdmain": {
-    "version": "1.0.0",
-    "filename": "hdmain-v1.0.0.bin"
+    "version": "0.0.4",
+    "filename": "hdmain-0.0.4"
   },
   "hdlog": {
-    "version": "1.2.0",
-    "filename": "hdlog-v1.2.0.bin"
+    "version": "1.0.1",
+    "filename": "hdlog-1.0.1"
   }
 }

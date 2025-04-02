@@ -51,6 +51,7 @@ typedef struct {
     time_t last_modified;
     int depends_on_count;
     char depends_on[MAX_SERVICE_DEPENDS][LEN_SERVICE_NAME];
+    char update;
 } HDService;
 
 

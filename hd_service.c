@@ -45,6 +45,8 @@ void hd_service_print_string(const HDService *svc,char * const result) {
     strcat(result, buffer);
     snprintf(buffer,sizeof(buffer),"    Dependencies:   %d\n", svc->depends_on_count);
     strcat(result, buffer);
+    snprintf(buffer,sizeof(buffer),"    Update:   %d\n", svc->update);
+    strcat(result, buffer);
     for (int i = 0; i < svc->depends_on_count; i++) {
         snprintf(buffer,sizeof(buffer),"        --[%s]\n", svc->depends_on[i]);
         strcat(result, buffer);
@@ -75,6 +77,7 @@ void hd_service_print(const HDService *svc) {
     for (int i = 0; i < svc->depends_on_count; i++) {
         printf("    - %s\n", svc->depends_on[i]);
     }
+    printf("  Update: %s\n", hd_service_type_string(svc->update));
 }
 
 static void hd_service_array_print_pretty(const HDServiceArray *sa, char * const result) ;
@@ -126,14 +129,14 @@ static void hd_service_array_print_pretty(const HDServiceArray *sa, char * const
     for (int i = 0; i < sa->count; i++) {
         service = &(sa->services[i]);
         snprintf(buffer, sizeof(buffer), 
-                "%-10s %-10d %-10s %-10s %-10s %s %p\n", 
+                "%-10s %-10d %-10s %-10s %-10s %s %s\n", 
                 service->name, 
                 service->pid, 
                 hd_service_status_string(service->status),
                 service->version == NULL ? "-" : service->version,
                 hd_service_type_string(service->type),
                 service->path,
-                service);
+                service->update?"UPDATEING":"UPDATED");
         strcat(result, buffer);
     }
 
@@ -156,14 +159,14 @@ static void hd_service_array_print_pretty_old(const HDServiceArray *sa) {
         snprintf(
             buffer, 
             sizeof(buffer), 
-            "%-10s %-10d %-10s %-10s %-10s %s %p\n", 
+            "%-10s %-10d %-10s %-10s %-10s %s %s\n", 
             service->name, 
             service->pid, 
             hd_service_status_string(service->status),
             service->version==NULL?"-":service->version ,
             hd_service_type_string(service->type),
             service->path,
-            service
+            service->update?"UPDATEING":"UPDATED"
             );
             printf("%s",buffer);
           

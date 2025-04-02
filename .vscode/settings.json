@@ -12,6 +12,7 @@
         "socket.h": "c",
         "ostream": "c",
         "hd_http.h": "c",
-        "hd_service_interface.h": "c"
+        "hd_service_interface.h": "c",
+        "errno.h": "c"
     }
 }

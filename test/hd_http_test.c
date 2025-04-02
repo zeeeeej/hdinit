@@ -3,13 +3,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "../hd_utils.h"
 
 void progress_callback(int *progress) {
     printf("Download progress: %d%%\n", *progress);
 }
 
 /**
- * gcc -o ./test/hd_http_test ./test/hd_http_test.c hd_http.c ./cJSON.c -lcurl
+ * gcc -o ./test/hd_http_test ./test/hd_http_test.c hd_http.c ./cJSON.c -lcurl hd_utils.c
  */
 int main() {
     hd_http_init();
@@ -46,8 +47,12 @@ int main() {
         /* case 03 (int)hd_http_check_update(const char *, char *); */
         printf("<case 03> hd_http_download\n");
         
-        snprintf(buff, 1024, "./ota/%s", resp.filename);
+        snprintf(buff, 1024, "./test/ota/%s", resp.filename);
         hd_http_download(resp.url, buff, progress_callback);
+
+        // cp
+        hd_cp_file(buff,"./test/ota/hdmain-cp");
+    
     } else {
         printf("No update available\n");
     }

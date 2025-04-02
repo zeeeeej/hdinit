@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include "cJSON.h"
 #include "hd_http.h"
+#include "hd_utils.h"
 #include <sys/stat.h>
 
 #define DEBUG 1
@@ -200,7 +201,7 @@ int hd_http_download(const char *url, const char *download_path, void (*callback
         printf("hd_http_download fopen :  %s\n",download_path);
 #endif
     // 确保目录存在
-    if (mkdir("./ota", 0755) == -1 && errno != EEXIST) {
+    if (hd_if_file_path_not_exists_create_path(download_path)!=0) {
         fprintf(stderr, "Cannot create dir: %s\n", strerror(errno));
         return -1;
     }

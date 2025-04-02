@@ -14,7 +14,7 @@
 
 #define TAG "hdlog"
 #define PREFIX ">>>>>>"
-#define VERSION "1.0.0"
+#define VERSION "1.0.1"
 
 volatile sig_atomic_t running = 1;
 
@@ -24,8 +24,12 @@ void handle_signal(int sig) {
     {
       
     }
-    else {
+    else if (sig == SIGUSR2)
+    {
         running=0;
+    }
+    else {
+      
     }
 }
 
@@ -107,6 +111,6 @@ int main(int argc,const char *argv[]) {
     }
     
     HD_LOGGER_INFO(TAG,"%s Log service stopped !!!\n",PREFIX);
-    free(&interface);
+
     return 0;
 }

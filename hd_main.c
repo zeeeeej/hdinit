@@ -10,10 +10,11 @@
 #include <stdlib.h>
 #include "hd_logger.h"
 #include "hd_ipc.h"
+#include "hd_utils.h"
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.1"
+#define VERSION "0.0.4"
 
 volatile sig_atomic_t running = 1;
 
@@ -23,15 +24,19 @@ void handle_signal(int sig) {
     {
       
     }
-    else {
+    else if (sig == SIGUSR2)
+    {
         running=0;
+    }
+    else {
+       
     }
     
 
 }
 
 /**
- * gcc -o hdmain hd_main.c hd_logger.c
+ * gcc -o ./server/files/hdmain hd_main.c hd_logger.c hd_utils.c
  */
 int main(int argc,const char *argv[]) {
     HD_LOGGER_INFO(TAG,"%s Main service started (PID: %d)\n",PREFIX, getpid());
