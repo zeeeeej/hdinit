@@ -11,9 +11,9 @@
 #include "hd_logger.h"
 #include "hd_ipc.h"
 
-
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
+#define VERSION "0.0.1"
 
 volatile sig_atomic_t running = 1;
 
@@ -42,7 +42,8 @@ int main(int argc,const char *argv[]) {
     int sock_fd = atoi(argv[1]);  // 获取父进程传递的 socket fd
 
     char buffer[128];
-    sprintf(buffer,"%s,%d","hdmain",getpid());
+    // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
+    sprintf(buffer,"%s,%d,%s","hdmain",getpid(),VERSION);
 
     write(sock_fd, buffer, strlen(buffer));
 

@@ -57,6 +57,10 @@ void *wait_child_exit_thread(void *arg)
    
     waitpid(pid, &status, 0); // 等待子进程结束
 
+    if (!service_manager_running)
+    {
+        return NULL;
+    }
     HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d]exited with status <%d|%d>\n",SPIT, s_name, s_path, getpid(), pid, status, WEXITSTATUS(status));
     
     if (WIFEXITED(status))
@@ -74,6 +78,8 @@ void *wait_child_exit_thread(void *arg)
 
     // 更新service
     service->status = HD_SERVICE_STATUS_STOPPED;
+
+    
   
     return NULL;
 }
@@ -85,6 +91,10 @@ void *wait_child_exit_thread(void *arg)
  */
 static int op_start_service_internal( HDService *service)
 {
+    if (!service_manager_running)
+    {
+        return -1;
+    }
     
     if (service == NULL)
     {
@@ -119,6 +129,8 @@ static int op_start_service_internal( HDService *service)
     }
     else if (pid == 0)
     {
+        // 子进程分支
+
         close(sock_fd);  // 子进程不需要监听
         int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
         connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
@@ -126,7 +138,6 @@ static int op_start_service_internal( HDService *service)
         char fd_str[10];
         snprintf(fd_str, sizeof(fd_str), "%d", client_fd);
       
-        // 子进程分支
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s]Child:[%d/%d] do execl... \n", start_name, start_path,  getppid(),getpid());
         int ret = execl(service->path, service->name, fd_str,NULL); // 成功时无返回值，失败返回 -1
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s]Child but Child execl() fail : %d! \n", start_name, start_path, ret);
@@ -151,22 +162,26 @@ static int op_start_service_internal( HDService *service)
         pthread_create(&wait_child_exit_thread_t, NULL, wait_child_exit_thread, args);
 
         /* 接受子进程的状态数据 */
+        // 接受子进程返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
         int client_fd = accept(sock_fd, NULL, NULL);
         char status[256];
         read(client_fd, status, sizeof(status));
         if (strlen(status)!=0)
         {
             char s_name[128];
+            char s_version[128];
             int s_id;
-            sscanf(status,"%127[^,],%d",s_name,&s_id);
+            sscanf(status,"%127[^,],%d,%127[^,]",s_name,&s_id,s_version);
             HD_LOGGER_ERROR(TAG,"op_start_service_internal Parent received: <%s> <%s> <%d>\n", status,s_name,s_id);
             HDService *service = hd_service_array_find_by_name(&g_service_array,s_name);
             if (service==NULL){
                 HD_LOGGER_ERROR(TAG,"op_start_service_internal service not found: %s\n", s_name);
             }else{
                 if (service->pid == s_id){
+                    stpncpy(service->version,s_version,strlen(s_version));
                     service->status = HD_SERVICE_STATUS_STARTED;
                     HD_LOGGER_ERROR(TAG,"op_start_service_internal %s SERVICE-STARTED!!! %s %s\n", s_name,PREFIX,PREFIX);
+                    hd_service_array_print(&g_service_array);
                     kill(s_id,SIGUSR1);
                     if (strcmp(HD_INIT_SERVICE_MAIN,service->name) == 0)
                     {
@@ -648,6 +663,10 @@ static void monitor_services(){
         
         if (service->status == HD_SERVICE_STATUS_STOPPED)
         {
+            if (!service_manager_running)
+            {
+                break;
+            }
             HD_LOGGER_DEBUG(TAG, "%-8s#monitor_services# [%s] %s ... \n",SPIT,service->name,hd_service_status_string(service->status));
             if (kill(service->pid, 0) != 0) // 不在运行中
             {
@@ -680,6 +699,11 @@ void * monitor_thread_services_thread(void * arg){
     {
         sleep(MONITOR_SERVICES_INTERVAL);
         HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d ... \n",start_main_service_count,service_manager_running);
+        if (!service_manager_running)
+        {
+            break;
+        }
+        
         monitor_services();
         service_manager_running_count++;
     }

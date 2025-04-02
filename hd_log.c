@@ -9,10 +9,12 @@
 #include <stdlib.h>
 #include "hd_logger.h"
 #include "hd_ipc.h"
+#include "hd_service_interface.h"
 
 
 #define TAG "hdlog"
 #define PREFIX ">>>>>>"
+#define VERSION "1.0.0"
 
 volatile sig_atomic_t running = 1;
 
@@ -25,9 +27,21 @@ void handle_signal(int sig) {
     else {
         running=0;
     }
-    
+}
+
+void on_init (){
 
 }
+
+void on_start (){
+
+}
+
+void on_destory (){
+
+}
+
+
 
 /**
  * gcc -o hdlog hd_log.c hd_logger.c
@@ -37,11 +51,18 @@ int main(int argc,const char *argv[]) {
 
     signal(SIGUSR1, handle_signal);
 
-    /* 接受父进程的socked fd 进行通信 */
+    hd_service_interface interface =  {
+        .hd_service_init = on_init,
+        .hd_service_on_start = on_start,
+        .hd_service_on_destory = on_destory
+    };
+
+    /* 接受父进程的socked fd 进行通信  */
     int sock_fd = atoi(argv[1]);  // 获取父进程传递的 socket fd
 
     char buffer[128];
-    sprintf(buffer,"%s,%d","hdlog",getpid());
+    // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
+    sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
 
     write(sock_fd, buffer, strlen(buffer));
 
@@ -86,5 +107,6 @@ int main(int argc,const char *argv[]) {
     }
     
     HD_LOGGER_INFO(TAG,"%s Log service stopped !!!\n",PREFIX);
+    free(&interface);
     return 0;
 }
