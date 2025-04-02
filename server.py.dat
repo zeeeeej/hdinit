@@ -1,0 +1,43 @@
+from flask import Flask, jsonify, send_from_directory
+import os
+import hashlib
+
+app = Flask(__name__)
+
+# 文件存储目录
+FILE_DIR = "./files"
+os.makedirs(FILE_DIR, exist_ok=True)
+
+# 示例文件准备 (实际使用时替换为你的文件)
+SAMPLE_FILE = os.path.join(FILE_DIR, "hdmain-v1.0.0.bin")
+if not os.path.exists(SAMPLE_FILE):
+    with open(SAMPLE_FILE, "wb") as f:
+        f.write(b"This is a sample update file content")
+
+def calculate_md5(filepath):
+    """计算文件MD5"""
+    hash_md5 = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+@app.route('/checkupdate/hdmain', methods=['GET'])
+def check_update():
+    # 实际项目中这里可以检查数据库或配置文件
+    file_url = "http://10.13.13.114:5000/files/hdmain-v1.0.0.bin"
+    file_md5 = calculate_md5(SAMPLE_FILE)
+    
+    return jsonify({
+        "url": file_url,
+        "md5": file_md5,
+        "version": "1.0.0"
+    })
+
+@app.route('/files/<filename>', methods=['GET'])
+def download_file(filename):
+    """文件下载端点"""
+    return send_from_directory(FILE_DIR, filename, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
