@@ -38,7 +38,7 @@ int hd_http_check_update(const char *service_name, hd_http_check_resp *resp);
  *  download_path   :   下载的目标path
  *  callback        :   下载进度
  */
-int hd_http_download(const char *url, const char *download_path, void (*callback)(int *));
+int hd_http_download(const char *url, const char *download_path, void (*callback)(double ));
 
 
 

@@ -14,12 +14,12 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.4"
+#define VERSION "0.0.8"
 
 volatile sig_atomic_t running = 1;
 
 void handle_signal(int sig) {
-    HD_LOGGER_INFO(TAG,"%sMain service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
+    HD_LOGGER_INFO(TAG,"%s Main service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
     if (sig == SIGUSR1)
     {
       
@@ -36,7 +36,7 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc -o ./server/files/hdmain hd_main.c hd_logger.c hd_utils.c
+ * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.6
  */
 int main(int argc,const char *argv[]) {
     HD_LOGGER_INFO(TAG,"%s Main service started (PID: %d)\n",PREFIX, getpid());

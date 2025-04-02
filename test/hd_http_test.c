@@ -10,7 +10,7 @@ void progress_callback(int *progress) {
 }
 
 /**
- * gcc -o ./test/hd_http_test ./test/hd_http_test.c hd_http.c ./cJSON.c -lcurl hd_utils.c
+ * gcc -o ./test/hd_http_test ./test/hd_http_test.c hd_http.c ./cJSON.c -lcurl hd_utils.c -lpthread
  */
 int main() {
     hd_http_init();
@@ -56,6 +56,9 @@ int main() {
     } else {
         printf("No update available\n");
     }
+
+
+    hd_http_download("http://127.0.0.1:5000/files/abc.iso", "./test/abc.iso", progress_callback);
     sync();
     
     return 0;

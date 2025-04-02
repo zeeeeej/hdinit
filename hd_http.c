@@ -6,8 +6,9 @@
 #include "hd_http.h"
 #include "hd_utils.h"
 #include <sys/stat.h>
+#include <pthread.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 #ifdef DEBUG
 #include <errno.h>
@@ -15,9 +16,55 @@
 
 // 下载进度回调结构体
 struct progress_data {
-    void (*callback)(int *);
+    void (*callback)(double);
     int dummy;
 };
+
+// // 进度数据结构
+// struct ProgressData {
+//     pthread_mutex_t lock;  // 线程安全锁
+//     double last_print;     // 上次打印的进度
+// };
+
+// // 线程安全的进度条打印
+// void print_progress(double percentage) {
+//     const int bar_width = 50;
+//     int filled = (int)(percentage * bar_width / 100.0);
+    
+//     printf("\r[");
+//     for (int i = 0; i < bar_width; i++) {
+//         if (i < filled) printf("=");
+//         else if (i == filled) printf(">");
+//         else printf(" ");
+//     }
+//     printf("] %.1f%%", percentage);
+//     fflush(stdout);
+// }
+
+// // libcurl 进度回调函数
+// static int progress_callback_advance(void *clientp, 
+//     double dltotal, 
+//     double dlnow, 
+//     double ultotal, 
+//     double ulnow)
+// {
+// struct ProgressData *pd = (struct ProgressData *)clientp;
+// double percentage = 0;
+
+// if (dltotal > 0) {
+// percentage = dlnow * 100.0 / dltotal;
+// }
+
+// // 避免频繁刷新（每1%变化才打印）
+// pthread_mutex_lock(&pd->lock);
+// if (percentage - pd->last_print >= 1.0 || percentage >= 100.0) {
+//     //hd_print_progress_double(percentage);
+//     pd->last_print = percentage;
+// }
+// pthread_mutex_unlock(&pd->lock);
+
+// return 0;  // 返回非0会中止传输
+// }
 
 
 
@@ -145,10 +192,10 @@ static int progress_callback(void *clientp, double dltotal, double dlnow, double
     struct progress_data *pd = (struct progress_data *)clientp;
     if (pd->callback && dltotal > 0) {
         int progress = (int)(dlnow / dltotal * 100);
-        pd->callback(&progress);
-#ifdef DEBUG
-        printf("Progress: %d%%\n", progress);
-#endif
+        pd->callback(progress);
+// #ifdef DEBUG
+//         printf("Progress: %d%%\n", progress);
+// #endif
     }
     return 0;
 }
@@ -174,7 +221,7 @@ static int progress_callback(void *clientp, double dltotal, double dlnow, double
  * @param callback 进度回调函数
  * @return 0成功，-1失败
  */
-int hd_http_download(const char *url, const char *download_path, void (*callback)(int *)) {
+int hd_http_download(const char *url, const char *download_path, void (*callback)(double )) {
 
 #ifdef DEBUG
     printf("hd_http_download url=%s ,download_path=%s  !\n",url,download_path);
@@ -184,6 +231,11 @@ int hd_http_download(const char *url, const char *download_path, void (*callback
     FILE *fp;
     CURLcode res;
     struct progress_data pd = {callback, 0};
+
+    // struct ProgressData pd;
+    // pthread_mutex_init(&pd.lock, NULL);
+    // pd.last_print = -1.0;  // 初始值
+
 #ifdef DEBUG
         printf("hd_http_download progress_data %p\n",&pd);
 #endif
@@ -226,19 +278,21 @@ int hd_http_download(const char *url, const char *download_path, void (*callback
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_callback);
         curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, &pd);
+
+        // curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);  // 启用进度回调
+        // curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_callback_advance);
+        // curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, &pd);
     }
 #ifdef DEBUG
     printf("hd_http_download curl_easy_perform\n");
 #endif  
     res = curl_easy_perform(curl);
-#ifdef DEBUG
-    printf("hd_http_download curl_easy_perform res: (%s)\n",curl_easy_strerror(res));
-#endif  
+// #ifdef DEBUG
+//     printf("hd_http_download curl_easy_perform res: (%s)\n",curl_easy_strerror(res));
+// #endif  
     if (res!=0)
     {
-#ifdef DEBUG
-    printf("hd_http_download curl_easy_perform %d(%s)\n",errno,strerror(errno));
-#endif
+        printf("hd_http_download curl_easy_perform %d(%s)\n",errno,strerror(errno));
     }
 
     fclose(fp);

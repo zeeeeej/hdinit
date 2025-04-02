@@ -26,7 +26,12 @@ int main() {
         fprintf(stderr, "Backup failed\n");
         return 1;
     }
-   
+    hd_print_progress_bar(0);
+    for (int i = 0; i <= 100; i++) {
+        hd_print_progress_bar(i);
+        usleep(100000); // 延迟 100ms（微秒）
+    }
+    printf("\nDone!\n");
     sync();
     return 0;
 }

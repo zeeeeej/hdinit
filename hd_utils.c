@@ -192,3 +192,42 @@ int hd_cp_file(const char *src_path, const char *dst_path) {
     printf("Successfully backed up %s to %s\n", src_path, dst_path);
     return 0;
 }
+
+
+void hd_print_progress_bar(int percent) {
+    const int bar_width = 50; // 进度条宽度（字符数）
+    char bar[bar_width + 1];  // +1 用于存储 '\0'
+    memset(bar, ' ', bar_width);
+    bar[bar_width] = '\0';
+
+    // 计算填充的进度位置
+    int filled_len = percent * bar_width / 100;
+    for (int i = 0; i < filled_len; i++) {
+        bar[i] = '=';
+    }
+    if (filled_len < bar_width && percent > 0) {
+        bar[filled_len] = '>'; // 进度条头部符号
+    }
+
+    // 打印进度条（\r 覆盖当前行）
+    // printf("\r[%s] %d%%", bar, percent);
+    printf("\r\033[K[%s] %d%%", bar, percent); // \033[K 清除右侧所有内容
+    printf("\r...");
+    fflush(stdout); // 立即刷新输出缓冲区
+}
+
+
+// 线程安全的进度条打印
+void hd_print_progress_double(double percentage) {
+    const int bar_width = 50;
+    int filled = (int)(percentage * bar_width / 100.0);
+    
+    printf("\r[");
+    for (int i = 0; i < bar_width; i++) {
+        if (i < filled) printf("=");
+        else if (i == filled) printf(">");
+        else printf(" ");
+    }
+    printf("] %.1f%%", percentage);
+    fflush(stdout);
+}

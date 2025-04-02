@@ -38,4 +38,9 @@ int hd_check_argc_argv_has_debug(int argc,  const char *argv[]);
 
 int hd_printf_argc_argv(int argc,char const *argv[],char * const result);
 
+void hd_print_progress_bar(int percent) ;
+
+void hd_print_progress_double(double percentage);
+
+
 #endif // __HD_UTILS__

@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <time.h>
 #include "hd_service.h"
+#include "hd_utils.h"
 
 #define PRINT_PRETTY 1
 

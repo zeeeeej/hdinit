@@ -86,8 +86,6 @@ void *wait_child_exit_thread(void *arg)
     return NULL;
 }
 
-
-
 /**
  * 启动服务
  */
@@ -587,12 +585,6 @@ static int op_check_service_update_internal(HDService *service, hd_http_check_re
     return ret;
 }
 
-static int op_update_service_internal(HDService *service,char * todo_path)
-{
-
-    return 0;
-}
-
 /**
  * 停止服务
  */
@@ -699,8 +691,25 @@ static void monitor_services(){
     }
 }
 
-void progress_callback(int *progress) {
-    printf("Download progress: %d%%\n", *progress);
+void progress_callback(double progress) {
+    HD_LOGGER_INFO(TAG,"-->progress:%d %%",progress);
+  
+    // // pthread_t current_tid = pthread_self();
+    // // printf("progress_callback: %f \n",progress);
+    // pthread_t t;
+    
+    
+    // pthread_mutex_lock(&lock);
+    hd_print_progress_double(progress);
+    
+    // pthread_mutex_unlock(&lock);
+
+    // // pthread_mutex_lock(&pd.lock);
+    // // if (*progress - pd.last_print >= 1.0 || *progress >= 100.0) {
+    // //     hd_print_progress_double( *progress);
+    // //     pd.last_print = *progress;
+    // // }
+    // // pthread_mutex_unlock(&pd.lock)
 }
 
 /**
@@ -729,17 +738,31 @@ static void upgrade_services(){
         {
             return;
         }
+
+       
+
         HD_LOGGER_DEBUG(TAG, "%-8s#upgrade_services# [%s] version:%s ... \n",SPIT,service->name,service->version);
         if (op_check_service_update_internal(service,&resp)>0)
         {
             HD_LOGGER_INFO(TAG, "%s need update ！ %s->%s\n",service->name,service->version,resp.version);
             snprintf(buff, 1024, "%s/ota/%s", HD_INIT_ROOT,resp.filename);
             ret = hd_http_download(resp.url, buff, progress_callback);
+        
+            HD_LOGGER_INFO(TAG,"download completed!!!\n");
+        
             // {
             //      "md5": "4da0413eeeb4e45661cc7f6fa4a1bdc5",
             //      "url": "http://127.0.0.1:5000/files/hdmain-0.0.2",
             //      "version": "0.0.2"
             // }
+
+            // hd_print_progress_bar(0);
+            // for (int i = 0; i <= 100; i++) {
+            //     hd_print_progress_bar(i);
+            //     usleep(100000); // 延迟 100ms（微秒）
+            // }
+            // printf("\nDone!\n");
+
             if (ret==0)
             {
                 HD_LOGGER_INFO(TAG, "%s download success from [%s] ！file path is :[%s] \n",service->name,resp.url,buff);
@@ -818,7 +841,7 @@ static void hd_init_sigint_handler(int sig){
 }
 
 /**
- *  gcc hd_init.c hd_logger.c hd_utils.c hd_service.c -o hd_init -lpthread hd_http.c ./cJSON.c -lcurl
+ *   gcc -o hd_init hd_init.c hd_logger.c hd_utils.c hd_service.c  -lpthread hd_http.c ./cJSON.c -lcurl
  */
 int main(int argc, char const *argv[])
 {
@@ -870,7 +893,7 @@ int main(int argc, char const *argv[])
     }
 
     /* [启动monitor线程] */
-    HD_LOGGER_INFO(TAG, "[monitor_services_thread_t started !!! ]\n");
+    HD_LOGGER_INFO(TAG, "[monitor_services_thread_t started !!!]\n");
     pthread_t monitor_services_thread_t;
     pthread_create(&monitor_services_thread_t,NULL,monitor_thread_services_thread,NULL);
 

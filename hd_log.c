@@ -19,7 +19,7 @@
 volatile sig_atomic_t running = 1;
 
 void handle_signal(int sig) {
-    HD_LOGGER_INFO(TAG,"%sLog service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
+    HD_LOGGER_INFO(TAG,"%s Log service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
     if (sig == SIGUSR1)
     {
       
