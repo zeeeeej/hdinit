@@ -8,6 +8,7 @@
 #include <sys/un.h>
 #include <stdlib.h>
 #include "hd_logger.h"
+#include "hd_utils.h"
 #include "hd_ipc.h"
 #include "hd_service_interface.h"
 
@@ -48,12 +49,15 @@ void on_destory (){
 
 
 /**
- * gcc -o hdlog hd_log.c hd_logger.c
+ * gcc -o hdlog hd_log.c hd_logger.c hd_utils.c
+ * gcc  hd_log.c hd_logger.c hd_utils.c -o ./server/files/hdlog-1.0.2
+ * 
  */
 int main(int argc,const char *argv[]) {
     HD_LOGGER_INFO(TAG,"%s Log service started (PID: %d)\n",PREFIX, getpid());
 
     signal(SIGUSR1, handle_signal);
+    signal(SIGUSR2, handle_signal);
 
     hd_service_interface interface =  {
         .hd_service_init = on_init,
@@ -66,7 +70,10 @@ int main(int argc,const char *argv[]) {
 
     char buffer[128];
     // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
-    sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
+    // sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
+    const int  sid = getpid();
+
+    hd_child_info_encode(buffer,"hdlog",sid,VERSION);
 
     write(sock_fd, buffer, strlen(buffer));
 

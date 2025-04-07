@@ -14,7 +14,7 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.9"
+#define VERSION "0.0.3"
 
 volatile sig_atomic_t running = 1;
 
@@ -38,7 +38,7 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.9
+ * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.3
  */
 int main(int argc,const char *argv[]) {
     HD_LOGGER_INFO(TAG,"%s Main service started (PID: %d)\n",PREFIX, getpid());
@@ -50,13 +50,18 @@ int main(int argc,const char *argv[]) {
     }
     
     signal(SIGUSR1, handle_signal);
+    signal(SIGUSR2, handle_signal);
 
     /* 接受父进程的socked fd 进行通信 */
     int sock_fd = atoi(argv[1]);  // 获取父进程传递的 socket fd
 
     char buffer[128];
     // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
-    sprintf(buffer,"%s,%d,%s","hdmain",getpid(),VERSION);
+    //sprintf(buffer,"%s,%d,%s","hdmain",getpid(),VERSION);
+
+    const int  sid = getpid();
+
+    hd_child_info_encode(buffer,"hdmain",sid,VERSION);
 
     write(sock_fd, buffer, strlen(buffer));
 

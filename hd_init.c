@@ -182,7 +182,8 @@ static int op_start_service_internal( HDService *service)
             char s_name[128];
             char s_version[128];
             int s_id;
-            sscanf(status,"%127[^,],%d,%127[^,]",s_name,&s_id,s_version);
+            hd_child_info_decode(status,s_name,&s_id,s_version);
+            //sscanf(status,"%127[^,],%d,%127[^,]",s_name,&s_id,s_version);
             HD_LOGGER_ERROR(TAG,"op_start_service_internal Parent received: <%s> <%s> <%d>\n", status,s_name,s_id);
             HDService *service = hd_service_array_find_by_name(&g_service_array,s_name);
             if (service==NULL){
@@ -889,10 +890,11 @@ static int upgrade_service(HDService * service){
                 HD_LOGGER_INFO(TAG, "[update]%s download fail ！ %s\n",service->name,resp.url);
                 return -5;
             }
-        }else{
-            HD_LOGGER_INFO(TAG, "[update]%s not need update !!! %s -> %s\n");
+        
+            HD_LOGGER_INFO(TAG, "[update]%s not need update !!! @%s \n",service->name,resp.url);
             return -3;
         } 
+        return -3;
 }
 
 /**
