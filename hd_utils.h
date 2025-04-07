@@ -42,5 +42,8 @@ void hd_print_progress_bar(int percent) ;
 
 void hd_print_progress_double(double percentage);
 
+int  hd_child_info_encode( char *dest,const char * s_name, int s_id,const char * s_version);
+int  hd_child_info_decode( const char *source, char* s_name, int* s_id, char * s_version);
+
 
 #endif // __HD_UTILS__

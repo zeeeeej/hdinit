@@ -231,3 +231,74 @@ void hd_print_progress_double(double percentage) {
     printf("] %.1f%%", percentage);
     fflush(stdout);
 }
+
+
+
+/**
+ * @brief 编码子设备信息（格式："name,id,version"）
+ * @param dest 存储编码后的字符串
+ * @param s_name 设备名称
+ * @param s_id 设备ID（整数）
+ * @param s_version 设备版本
+ * @return 成功返回 0，失败返回 -1
+ */
+int hd_child_info_encode(char *dest, const char *s_name, int s_id, const char *s_version) {
+    if (!dest || !s_name || !s_version) {
+        return -1; // 参数错误
+    }
+    // 计算所需缓冲区大小（name + id字符串形式 + version + 2个逗号 + '\0'）
+    int id_len = snprintf(NULL, 0, "%d", s_id); // 获取s_id的字符串长度
+    int total_len = strlen(s_name) + id_len + strlen(s_version) + 2 + 1;
+    
+    // 检查目标缓冲区是否足够大（假设调用者已分配足够空间）
+    snprintf(dest, total_len, "%s,%d,%s", s_name, s_id, s_version);
+    return 0;
+}
+
+/**
+ * @brief 解码子设备信息（格式："name,id,version"）
+ * @param source 源字符串
+ * @param s_name 存储设备名称（需提前分配足够空间）
+ * @param s_id 存储设备ID（整数，按值返回需改为指针，此处假设按值传递有误，实际应改为 int*）
+ * @param s_version 存储设备版本（需提前分配足够空间）
+ * @return 成功返回 0，失败返回 -1
+ * @note 原函数签名中 s_id 为 int，无法通过参数返回，实际应为 int*！
+ */
+int hd_child_info_decode(const char *source, char *s_name, int *s_id, char *s_version) {
+    if (!source || !s_name || !s_id || !s_version) {
+        return -1; // 参数错误
+    }
+
+    // 复制 source（strtok 会修改原字符串）
+    char *input = strdup(source);
+    if (!input) {
+        return -1; // 内存分配失败
+    }
+
+    // 提取 name
+    char *token = strtok(input, ",");
+    if (!token) {
+        free(input);
+        return -1;
+    }
+    strncpy(s_name, token, strlen(token) + 1);
+
+    // 提取 id（字符串转整数）
+    token = strtok(NULL, ",");
+    if (!token) {
+        free(input);
+        return -1;
+    }
+    *s_id = atoi(token); // 或用 strtol 更安全
+
+    // 提取 version
+    token = strtok(NULL, ",");
+    if (!token) {
+        free(input);
+        return -1;
+    }
+    strncpy(s_version, token, strlen(token) + 1);
+
+    free(input);
+    return 0;
+}

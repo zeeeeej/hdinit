@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <pthread.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #ifdef DEBUG
 #include <errno.h>
@@ -117,13 +117,18 @@ int hd_http_check_update(const char *service_name, hd_http_check_resp *resp) {
     char api_url[1024];
 
     if (hd_http_check_update_url(service_name, api_url)) {
+
         return -1;
     }
+#ifdef DEBUG
+        printf("hd_http_check_update curl_easy_init %s\n",api_url);
+#endif
 
     curl = curl_easy_init();
+    printf("hd_http_check_update curl_easy_init result %s --> %p\n",api_url,curl);
     if (!curl) {
 #ifdef DEBUG
-        printf("hd_http_check_update curl_easy_init %d(%s)\n",errno,strerror(errno));
+        printf("hd_http_check_update curl_easy_init error %d(%s)\n",errno,strerror(errno));
 #endif
         return -1;
     }
