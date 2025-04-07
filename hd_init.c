@@ -575,8 +575,9 @@ void *ipc_server_thread(void *arg)
  */
 void *init_debug_thread(void *arg)
 {
-    sleep(10);
-    service_manager_running = 0;
+    sleep(15);
+    //service_manager_running = 0;
+    kill(getpid(),SIGUSR1);
     return NULL;
 }
 
@@ -716,6 +717,8 @@ static void opt_reboot_internal(){
     service_manager_running = 0;
 
     //reboot(RB_AUTOBOOT);  // 发起重启
+    sleep(10); // 给时间保存数据
+    kill(getpid(),SIGKILL);
 }
 
 /**
@@ -895,6 +898,31 @@ void * monitor_thread_services_thread(void * arg){
     return NULL;
 }
 
+void * monitor_thread_services_thread_by_select(void * arg){
+    int retval;
+    struct timeval tv;
+    /* 开始循环 检测核心服务是否运行 */
+    while (service_manager_running)
+    {
+        HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d ... \n",start_main_service_count,service_manager_running);
+        tv.tv_sec = MONITOR_SERVICES_INTERVAL;
+        tv.tv_usec = 0;
+        retval = select(0,NULL,NULL,NULL,&tv);
+        if(retval == -1){
+            perror("select()出错");
+            HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d select出错 \n",start_main_service_count,service_manager_running);
+        } else if(retval){
+            HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d select有输入 \n",start_main_service_count,service_manager_running);
+        }else{
+            HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d select没有输入 \n",start_main_service_count,service_manager_running);
+            monitor_services();
+            service_manager_running_count++;
+        }
+    }
+    HD_LOGGER_DEBUG(TAG, "#monitor_services# %d-%d 任务结束 \n",start_main_service_count,service_manager_running);
+    return NULL;
+}
+
 void * upgrade_thread_services_thread(void * arg){
     /* 开始循环 检测核心服务是否需要升级 */
     while (service_manager_running)
@@ -903,6 +931,31 @@ void * upgrade_thread_services_thread(void * arg){
         HD_LOGGER_DEBUG(TAG, "#upgrade_services# ... \n");
         upgrade_services();
     }
+    return NULL;
+}
+
+void * upgrade_thread_services_thread_by_select(void * arg){
+
+   /* 开始循环 检测核心服务是否需要升级 */
+    while (service_manager_running)
+    {
+        int retval;
+        struct timeval tv;
+        HD_LOGGER_DEBUG(TAG, "##upgrade_services## %d-%d ... \n",start_main_service_count,service_manager_running);
+        tv.tv_sec = UPGRADE_SERVICES_INTERVAL;
+        tv.tv_usec = 0;
+        retval = select(0,NULL,NULL,NULL,&tv);
+        if(retval == -1){
+            perror("select()出错");
+            HD_LOGGER_DEBUG(TAG, "##upgrade_services## %d-%d select出错 \n",start_main_service_count,service_manager_running);
+        } else if(retval){
+            HD_LOGGER_DEBUG(TAG, "##upgrade_services## %d-%d select有输入 \n",start_main_service_count,service_manager_running);
+        }else{
+            HD_LOGGER_DEBUG(TAG, "##upgrade_services## %d-%d select没有输入 \n",start_main_service_count,service_manager_running);
+            upgrade_services();
+        }
+    }
+    HD_LOGGER_DEBUG(TAG, "##upgrade_services## %d-%d 任务结束 \n",start_main_service_count,service_manager_running);
     return NULL;
 }
 
@@ -926,9 +979,9 @@ static void hd_init_sigint_handler(int sig){
 int main(int argc, char const *argv[])
 {
     /*[注册信号]*/
-    signal(SIGINT, hd_init_sigint_handler);  // 注册信号处理器 ctrl + c
-    signal(SIGTSTP, hd_init_sigint_handler);  // 注册信号处理器 ctrl + z
-    signal(SIGKILL, hd_init_sigint_handler);  // kill -9
+    //signal(SIGINT, hd_init_sigint_handler);  // 注册信号处理器 ctrl + c
+    //signal(SIGTSTP, hd_init_sigint_handler);  // 注册信号处理器 ctrl + z
+    signal(SIGUSR1, hd_init_sigint_handler);  // kill -9
 
     hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
 
@@ -975,12 +1028,12 @@ int main(int argc, char const *argv[])
     /* [启动monitor线程] */
     HD_LOGGER_INFO(TAG, "[monitor_services_thread_t started !!!]\n");
     pthread_t monitor_services_thread_t;
-    pthread_create(&monitor_services_thread_t,NULL,monitor_thread_services_thread,NULL);
+    pthread_create(&monitor_services_thread_t,NULL,monitor_thread_services_thread_by_select,NULL);
 
     /* 启动upgrade线程 */
     HD_LOGGER_INFO(TAG, "[upgrade_services_thread_t started !!!] \n");
     pthread_t upgrade_services_thread_t;
-    pthread_create(&upgrade_services_thread_t,NULL,upgrade_thread_services_thread,NULL);
+    pthread_create(&upgrade_services_thread_t,NULL,upgrade_thread_services_thread_by_select,NULL);
 
     pthread_join(monitor_services_thread_t,NULL);
     HD_LOGGER_INFO(TAG, "[monitor_services_thread_t end !!!] \n");
@@ -994,6 +1047,9 @@ int main(int argc, char const *argv[])
     //kill(getpid(), SIGKILL);  // SIGTERM 更温和
     //kill(getpid(), SIGTERM);  // SIGTERM 更温和
     //printf("这行不会执行\n");
+
+
+
 
     hd_service_array_cleanup(&g_service_array);
 
