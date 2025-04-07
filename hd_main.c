@@ -14,12 +14,14 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.8"
+#define VERSION "0.0.9"
 
 volatile sig_atomic_t running = 1;
 
 void handle_signal(int sig) {
+    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n");
     HD_LOGGER_INFO(TAG,"%s Main service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
+    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n");
     if (sig == SIGUSR1)
     {
       
@@ -36,11 +38,17 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.6
+ * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.9
  */
 int main(int argc,const char *argv[]) {
     HD_LOGGER_INFO(TAG,"%s Main service started (PID: %d)\n",PREFIX, getpid());
 
+    if (argc<=1)
+    {
+        HD_LOGGER_INFO(TAG,"%s Main service started return .\n",PREFIX);
+        return 0 ;
+    }
+    
     signal(SIGUSR1, handle_signal);
 
     /* 接受父进程的socked fd 进行通信 */

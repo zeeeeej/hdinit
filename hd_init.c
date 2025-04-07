@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <fcntl.h>
 #include "hd_logger.h"
 #include "hd_utils.h"
 #include "hd_ipc.h"
@@ -23,12 +24,15 @@ static void opt_reboot_internal();
 static int op_stop_service_internal( HDService *service);
 static int op_check_service_update_internal(HDService *service,hd_http_check_resp *resp);
 static void hd_init_exit();
+static int upgrade_service(HDService * service);
 
 typedef struct
 {
      HDService * service;
     // const char *service_name;
 } Wait_Child_Exit_Thread_Args;
+
+#define _D_( msg, ...)   HD_LOGGER_DEBUG(TAG,msg, ##__VA_ARGS__)
 
 /**
  * 主进程等待子进程退出 
@@ -56,9 +60,9 @@ void *wait_child_exit_thread(void *arg)
     HD_LOGGER_DEBUG(TAG, "%-8s@wait_child_exit_thread[%s:%s][%d/%d] wait exit ... \n",SPIT, s_name, s_path, getpid(), pid);
     
     int status;
-   
+    _D_("_debug_ wait_child_exit_thread  waitpid start.\n");
     waitpid(pid, &status, 0); // 等待子进程结束
-
+    _D_("_debug_ wait_child_exit_thread  waitpid end.\n");
     if (!service_manager_running)
     {
         return NULL;
@@ -81,8 +85,8 @@ void *wait_child_exit_thread(void *arg)
     // 更新service
     service->status = HD_SERVICE_STATUS_STOPPED;
 
-    
-  
+    _D_("_debug_ wait_child_exit_thread  end.\n");
+      pthread_exit(NULL);  // 显式终止当前线程
     return NULL;
 }
 
@@ -130,7 +134,7 @@ static int op_start_service_internal( HDService *service)
     else if (pid == 0)
     {
         // 子进程分支
-
+        _D_("_debug_ op_start_service_internal child start.\n");
         close(sock_fd);  // 子进程不需要监听
         int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
         connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
@@ -143,6 +147,7 @@ static int op_start_service_internal( HDService *service)
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s]Child but Child execl() fail : %d! \n", start_name, start_path, ret);
         // exit(EXIT_FAILURE);
         _exit(ERROR_CHILD_START_FAIL); // 通知Parent
+        _D_("_debug_ op_start_service_internal child end.\n");
     }
     else
     {
@@ -151,6 +156,7 @@ static int op_start_service_internal( HDService *service)
         {
             return -1;
         }
+        _D_("_debug_ op_start_service_internal parent start.\n");
         // 父进程分支
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s] Parent:[%d/%d]! \n", start_name, start_path, getpid(), pid);
         service->status = HD_SERVICE_STATUS_STARTTING;
@@ -205,7 +211,7 @@ static int op_start_service_internal( HDService *service)
         close(sock_fd);
         unlink(addr.sun_path);  // 清理 socket 文件
         /* 接受子进程的状态数据 end */
-
+        _D_("_debug_ op_start_service_internal parent end.\n");
         return 0;
     }
 }
@@ -272,11 +278,69 @@ static void ipc_show_service_detail(int client_fd,const char *service_name){
 
 }
 
-void handle_client_command(int client_fd, int argc, const char *argv[]) {
+struct ipc_check_update_thread_data{
+    char * service_name;
+    int client_fd;
+} ;
+
+void * ipc_check_update_thread(void *arg){
+    struct  ipc_check_update_thread_data  * data  = (struct ipc_check_update_thread_data *) arg;
+    char * service_name  = data->service_name;
+    int client_fd = data->client_fd;
+    char buffer  [2048] ;
+    HDService *service = hd_service_array_find_by_name(&g_service_array,service_name);
+    if (service == NULL) {
+        snprintf(buffer, sizeof(buffer), "Service %s not found\n", service_name);
+        write(client_fd, buffer, strlen(buffer));
+        return NULL;
+    }
+    int ret = upgrade_service(service);
+
+    // hd_http_check_resp resp;
+    // if (op_check_service_update_internal(service,&resp)>0) {
+    //     snprintf(buffer, sizeof(buffer), "Service %s has updates\n", argv[1]);
+    // } else {
+    //     snprintf(buffer, sizeof(buffer), "Service %s is up to date\n", argv[1]);
+    // }
+    
+    if (ret==0)
+    {
+        snprintf(buffer, sizeof(buffer), "Service %s 更新完毕！（%d）\n\r", service_name,ret);
+    } 
+    else if(ret ==-2){
+        snprintf(buffer, sizeof(buffer), "Service %s 正在更新中...（%d）\n\r", service_name,ret);
+    }
+    else {
+        snprintf(buffer, sizeof(buffer), "Service %s 无更新！（%d）\n\r", service_name,ret);
+    }
+    write(client_fd, buffer, strlen(buffer));
+    write(client_fd, "================ ok ====================", strlen("================ ok ===================="));
+    printf("================ ok2 ====================\n");
+    return NULL;
+}
+
+static void ipc_check_update(int client_fd,const char *service_name){
+   pthread_t t;
+   struct ipc_check_update_thread_data data = {
+        .client_fd = client_fd,
+        .service_name = (char*)service_name
+   };
+   pthread_create(&t,NULL,ipc_check_update_thread,&data);
+   pthread_join(t,NULL);
+   printf("================ over ====================\n");
+}
+
+/**
+ * 1.客户端发送完命令 开启阻塞 等待服务器处理命令。
+ * 2.超时时间 可选
+ * 3.服务器需要异步发送自己的状态 在合适的时机结束阻塞。
+ * 4.
+ */
+static void handle_client_command(int client_fd, int argc, const char *argv[]) {
     char buffer[1024];
     char result [2048];
     hd_printf_argc_argv(argc,argv,result);
-    HD_LOGGER_DEBUG(TAG,"handle_client_command argc:%d ,result:%s\n",argc ,result);	
+    HD_LOGGER_INFO(TAG,"handle_client_command argc:%d ,result:%s\n",argc ,result);	
     if (argc <1) {
         snprintf(buffer, sizeof(buffer), "%s\n",ipc_print_help_str());
         printf("%s",buffer);
@@ -349,7 +413,11 @@ void handle_client_command(int client_fd, int argc, const char *argv[]) {
             write(client_fd, buffer, strlen(buffer));
             return;
         }
-        if (op_stop_service_internal(service) == 0) {
+        op_stop_service_internal(service);
+      
+        sleep(1);
+        int ret  = service->status == HD_SERVICE_STATUS_STOPPED ||    service->status==HD_SERVICE_STATUS_STOPPING;
+        if (ret) {
             snprintf(buffer, sizeof(buffer), "Stopped service %s\n", argv[1]);
         } else {
             snprintf(buffer, sizeof(buffer), "Failed to stop service %s\n", argv[1]);
@@ -362,20 +430,10 @@ void handle_client_command(int client_fd, int argc, const char *argv[]) {
             write(client_fd, buffer, strlen(buffer));
             return;
         }
-        HDService *service = hd_service_array_find_by_name(&g_service_array,argv[1]);
-        if (service == NULL) {
-            snprintf(buffer, sizeof(buffer), "Service %s not found\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
-            return;
-        }
-        hd_http_check_resp resp;
-        if (op_check_service_update_internal(service,&resp)!=0) {
-            snprintf(buffer, sizeof(buffer), "Service %s has updates\n", argv[1]);
-        } else {
-            snprintf(buffer, sizeof(buffer), "Service %s is up to date\n", argv[1]);
-        }
-
-        write(client_fd, buffer, strlen(buffer));
+        ipc_check_update(client_fd,argv[1]);
+        
+        
+       
     }
     else if (strcmp(argv[0], "register") == 0) {
         if (argc < 3) {
@@ -460,6 +518,8 @@ void *ipc_server_thread(void *arg)
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sun_family = AF_UNIX;
     strcpy(server_addr.sun_path, socket_path);
+
+    //fcntl(server_fd, F_SETFL, O_NONBLOCK);
     
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         HD_LOGGER_ERROR(TAG,"ipc_server_thread socket[%s] error bind: %d(%s)!\n",socket_path,errno,strerror(errno));
@@ -480,7 +540,8 @@ void *ipc_server_thread(void *arg)
             }
             continue;
         }
-        
+        HD_LOGGER_ERROR(TAG,"ipc_server_thread socket accept client : [%d] \n",client_fd);
+
         char cmd[1024];
         int n = read(client_fd, cmd, sizeof(cmd) - 1);
         if (n > 0) {
@@ -499,10 +560,10 @@ void *ipc_server_thread(void *arg)
                 handle_client_command(client_fd, argc, argv);
             }
         }
-        
+        HD_LOGGER_ERROR(TAG,"ipc_server_thread socket:[%d] close_client[%d]!!! \n",server_fd,client_fd);
         close(client_fd);
     }
-    
+    HD_LOGGER_ERROR(TAG,"ipc_server_thread socket:[%d] closed!!! \n",server_fd);
     close(server_fd);
     unlink(socket_path);
     return NULL;
@@ -603,26 +664,32 @@ static int op_stop_service_internal( HDService *service)
         service->status = HD_SERVICE_STATUS_STOPPING;
         kill(service->pid,SIGUSR2);
         if (kill(child_pid, SIGTERM) == 0)
-        {
-            sleep(1); // 给子进程时间清理
-            int status;
-            // 检查子进程是否还在运行
-            if (waitpid(child_pid, &status, WNOHANG) == 0)
-            {
-                // 如果还在运行，强制终止
-                kill(child_pid, SIGKILL);
-                // waitpid(child_pid, &status, 0);
-                // service->is_running = 0;
-                return 0;
-            }
-            else
-            {
-                perror("kill failed");
-                return -1;
-            }
-        }
+        // {
+        //     HD_LOGGER_ERROR(TAG, "op_stop_service_internal kill: %s %s (child_pid, SIGTERM) ==0 \n", s_name, s_path);
+        //     sleep(1); // 给子进程时间清理
+        //     int status;
+            
+        //     // 检查子进程是否还在运行
+        //     if (waitpid(child_pid, &status, WNOHANG) == 0)
+        //     {
+        //         // 如果还在运行，强制终止
+        //         kill(child_pid, SIGKILL);
+        //         // waitpid(child_pid, &status, 0);
+        //         // service->is_running = 0;
+        //         HD_LOGGER_ERROR(TAG, "op_stop_service_internal kill: %s %s exit0 kill with SIGKILL! \n", s_name, s_path);
+        //         return 0;
+        //     }
+        //     else
+        //     {
+        //         HD_LOGGER_ERROR(TAG, "op_stop_service_internal kill: %s %s exit0 kill failed! \n", s_name, s_path);
+        //         return 0;
+        //     }
+            
+        // }
+        HD_LOGGER_ERROR(TAG, "op_stop_service_internal kill: %s %s exit1 \n", s_name, s_path);
         return 0;
     }
+    HD_LOGGER_ERROR(TAG, "op_stop_service_internal kill: %s %s exit2 with already stopped! \n", s_name, s_path);
     return 0;
 }
 
@@ -712,33 +779,18 @@ void progress_callback(double progress) {
     // // pthread_mutex_unlock(&pd.lock)
 }
 
-/**
- * 检测服务升级
- */
-static void upgrade_services(){
-    if (!service_manager_running)
-    {
-        return;
-    }
-    
-    /* 服务器version */
-    hd_http_check_resp resp;
-    char buff[1024];
-    char oldPath[1024];
-    char tmp[1024];
-    int ret;
-    for (int i = 0; i < g_service_array.count; i++)
-    {
-        if (!service_manager_running)
-        {
-            return;
-        }
-        HDService *service = g_service_array.services+i;    
+static int upgrade_service(HDService * service){
         if (service->update)
         {
-            return;
+            return -2;
         }
 
+        /* 服务器version */
+        hd_http_check_resp resp;
+        char buff[1024];
+        char destPath[1024];
+        char tmp[1024];
+        int ret;
        
 
         HD_LOGGER_DEBUG(TAG, "%-8s#upgrade_services# [%s] version:%s ... \n",SPIT,service->name,service->version);
@@ -748,7 +800,7 @@ static void upgrade_services(){
             snprintf(buff, 1024, "%s/ota/%s", HD_INIT_ROOT,resp.filename);
             ret = hd_http_download(resp.url, buff, progress_callback);
         
-            HD_LOGGER_INFO(TAG,"download completed!!!\n");
+            HD_LOGGER_INFO(TAG,"[update]download completed!!!\n");
         
             // {
             //      "md5": "4da0413eeeb4e45661cc7f6fa4a1bdc5",
@@ -765,35 +817,63 @@ static void upgrade_services(){
 
             if (ret==0)
             {
-                HD_LOGGER_INFO(TAG, "%s download success from [%s] ！file path is :[%s] \n",service->name,resp.url,buff);
+                HD_LOGGER_INFO(TAG, "[update]%s download success from [%s] ！file path is :[%s] \n",service->name,resp.url,buff);
                 /* 备份老的程序 */
-                snprintf(oldPath, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
-                ret = hd_cp_file(service->path,oldPath);
+                snprintf(destPath, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
+                ret = hd_cp_file(service->path,destPath);
                 if (ret)
                 {
-                    HD_LOGGER_INFO(TAG, "bakup fail! %s \n",service->name);
-                    continue;
+                    HD_LOGGER_INFO(TAG, "[update]bakup fail! %s \n",service->name);
+                    return -3;
                 }
-                
+                HD_LOGGER_INFO(TAG, "[update]%s backup complete!!! %s -> %s\n",service->path,destPath);
                 /* 复制新程序   */
                 ret = hd_cp_file(buff,service->path);
                 if (ret)
                 {
-                    HD_LOGGER_INFO(TAG, "update fail! %s \n",service->name);
-                    continue;
+                    HD_LOGGER_INFO(TAG, "[update]update fail! %s \n",service->name);
+                    return -4;
                 }
+                HD_LOGGER_INFO(TAG, "[update]%s update complete!!! %s -> %s\n",buff,service->path);
                 service->update = 1;
                
                 /* 停止服务 */
                 op_stop_service_internal(service);
+                HD_LOGGER_INFO(TAG, "[update]%s stop-service complete!!! \n");
                 /* 启动服务 */
                 sleep(5);
+                HD_LOGGER_INFO(TAG, "[update]%s sleep 5s ... !!! %s -> %s\n");
                 op_start_service_internal(service);
+                HD_LOGGER_INFO(TAG, "[update]%s start-service  !!! %s -> %s\n");
                 // service->update = 0;
+                return 0;
             } else {
-                HD_LOGGER_INFO(TAG, "%s download fail ！ %s\n",service->name,resp.url);
+                HD_LOGGER_INFO(TAG, "[update]%s download fail ！ %s\n",service->name,resp.url);
+                return -2;
             }
+        }else{
+            HD_LOGGER_INFO(TAG, "[update]%s not need update !!! %s -> %s\n");
+            return 1;
+        } 
+}
+
+/**
+ * 检测服务升级
+ */
+static void upgrade_services(){
+    if (!service_manager_running)
+    {
+        return;
+    }
+    
+  
+    for (int i = 0; i < g_service_array.count; i++)
+    {
+        if (!service_manager_running)
+        {
+            return;
         }
+        upgrade_service(g_service_array.services+i);
     }
     
 }
@@ -819,7 +899,7 @@ void * upgrade_thread_services_thread(void * arg){
     /* 开始循环 检测核心服务是否需要升级 */
     while (service_manager_running)
     {
-        sleep(MONITOR_SERVICES_INTERVAL);
+        sleep(UPGRADE_SERVICES_INTERVAL);
         HD_LOGGER_DEBUG(TAG, "#upgrade_services# ... \n");
         upgrade_services();
     }
@@ -850,7 +930,7 @@ int main(int argc, char const *argv[])
     signal(SIGTSTP, hd_init_sigint_handler);  // 注册信号处理器 ctrl + z
     signal(SIGKILL, hd_init_sigint_handler);  // kill -9
 
-    hd_logger_set_level(HD_LOGGER_LEVEL_INFO);
+    hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
 
     HD_LOGGER_INFO(TAG, "================================================\n");
     HD_LOGGER_INFO(TAG, "Starting hd_init service manager (version:%d ) ...\n", VERSION);
@@ -914,6 +994,8 @@ int main(int argc, char const *argv[])
     //kill(getpid(), SIGKILL);  // SIGTERM 更温和
     //kill(getpid(), SIGTERM);  // SIGTERM 更温和
     //printf("这行不会执行\n");
+
     hd_service_array_cleanup(&g_service_array);
+
     return 0;
 }

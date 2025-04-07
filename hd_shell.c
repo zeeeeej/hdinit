@@ -13,11 +13,31 @@
 #include "hd_ipc.h"
 #include "hd_logger.h"
 #include "hd_utils.h"
+#include <fcntl.h>
+#include <pthread.h>
 
 #define TAG "hdshell"
 
 
 volatile sig_atomic_t running = 1;
+
+struct recv_thread_func_data
+{
+    int  sock_fd;
+} ;
+
+
+void * recv_thread_func(void * arg){
+    struct recv_thread_func_data *data = (struct recv_thread_func_data*)arg;
+    // 接收响应
+    char buffer[1024];
+    int n;
+    while ((n = read(data->sock_fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';
+        HD_LOGGER_INFO(TAG,"%s\n",buffer);
+    }
+    return NULL;
+}
 
 /** start */
 
@@ -32,15 +52,25 @@ int send_command_to_hdinit(int argc,  const char *argv[]) {
         return -1;
     }
     
+    // 确保路径可访问
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, HD_IPC_SOCKET_PATH);
+
+    //fcntl(sock_fd, F_SETFL, O_NONBLOCK); // 非阻塞模式
     
     if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         HD_LOGGER_ERROR(TAG,"send_command_to_hdinit socket connect [%s]error : %s(errno=%d)!\n",HD_IPC_SOCKET_PATH,strerror(errno), errno);
         close(sock_fd);
         return -1;
     }
+
+    //HD_LOGGER_ERROR(TAG,"\n\nsend_command_to_hdinit  recv_thread_func ! \n\n");
+    pthread_t read_t;
+    struct recv_thread_func_data data = {
+        .sock_fd = sock_fd
+    };
+    pthread_create(&read_t,NULL,recv_thread_func,&data);
     
     // 构建命令字符串
     char cmd[1024] = {0};
@@ -61,27 +91,19 @@ int send_command_to_hdinit(int argc,  const char *argv[]) {
     }
     HD_LOGGER_DEBUG(TAG,"send_command_to_hdinit cmd:<%s>!\n",cmd);
   
-    
     // 设置接收超时为5秒
-    struct timeval tv;
-    tv.tv_sec = 5;
-    tv.tv_usec = 0; 
-    setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-    
+    // struct timeval tv;
+    // tv.tv_sec = 5;
+    // tv.tv_usec = 0; 
+    // setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
     // 发送命令
     if (write(sock_fd, cmd, strlen(cmd)) == -1) {
 	    HD_LOGGER_ERROR(TAG,"send_command_to_hdinit  socket write error!\n");
         close(sock_fd);
         return -1;
     }
-    
-    // 接收响应
-    int n;
-    while ((n = read(sock_fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[n] = '\0';
-        printf("%s", buffer);
-    }
-    
+    pthread_join(read_t,NULL);
     close(sock_fd);
     return 0;
 }
@@ -93,7 +115,7 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc hd_shell.c hd_logger.c -o hdshell
+ * gcc hd_shell.c hd_logger.c hd_utils.c  -lpthread -o hdshell
  */
 int main(int argc,  const char *argv[]) {
     int debug = hd_check_argc_argv_has_debug(argc,argv); 
@@ -128,7 +150,7 @@ int main(int argc,  const char *argv[]) {
             //ipc_print_help();
         }
         
-        return ret;
+
     //}
 
     /*
@@ -180,5 +202,7 @@ int main(int argc,  const char *argv[]) {
                 send_command_to_hdinit(arg_count + 1, new_argv);
             }
         }*/
+
+        HD_LOGGER_INFO(TAG,"<<< shell end ！！！！ \n", ret);
     return 0;
 }
