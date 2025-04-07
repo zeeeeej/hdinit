@@ -278,21 +278,66 @@ static void ipc_show_service_detail(int client_fd,const char *service_name){
 
 }
 
-struct ipc_check_update_thread_data{
-    char * service_name;
-    int client_fd;
-} ;
+// struct ipc_check_update_thread_data{
+//     char * service_name;
+//     int client_fd;
+// } ;
 
-void * ipc_check_update_thread(void *arg){
-    struct  ipc_check_update_thread_data  * data  = (struct ipc_check_update_thread_data *) arg;
-    char * service_name  = data->service_name;
-    int client_fd = data->client_fd;
+// void * ipc_check_update_thread(void *arg){
+//     struct  ipc_check_update_thread_data  * data  = (struct ipc_check_update_thread_data *) arg;
+//     char * service_name  = data->service_name;
+//     int client_fd = data->client_fd;
+//     char buffer  [2048] ;
+//     HDService *service = hd_service_array_find_by_name(&g_service_array,service_name);
+//     if (service == NULL) {
+//         snprintf(buffer, sizeof(buffer), "Service %s not found\n", service_name);
+//         write(client_fd, buffer, strlen(buffer));
+//         return NULL;
+//     }
+//     int ret = upgrade_service(service);
+
+//     // hd_http_check_resp resp;
+//     // if (op_check_service_update_internal(service,&resp)>0) {
+//     //     snprintf(buffer, sizeof(buffer), "Service %s has updates\n", argv[1]);
+//     // } else {
+//     //     snprintf(buffer, sizeof(buffer), "Service %s is up to date\n", argv[1]);
+//     // }
+    
+//     if (ret==0)
+//     {
+//         snprintf(buffer, sizeof(buffer), "Service %s 更新完毕！（%d）\n\r", service_name,ret);
+//     } 
+//     else if(ret ==-2){
+//         snprintf(buffer, sizeof(buffer), "Service %s 正在更新中...（%d）\n\r", service_name,ret);
+//     }
+//     else {
+//         snprintf(buffer, sizeof(buffer), "Service %s 无更新！（%d）\n\r", service_name,ret);
+//     }
+//     write(client_fd, buffer, strlen(buffer));
+//     write(client_fd, "================ ok ====================", strlen("================ ok ===================="));
+//     printf("================ ok2 ====================\n");
+//     return NULL;
+// }
+
+static void ipc_check_update(int client_fd,const char *service_name){
+//    pthread_t t;
+//    struct ipc_check_update_thread_data data = {
+//         .client_fd = client_fd,
+//         .service_name = (char*)service_name
+//    };
+//    pthread_create(&t,NULL,ipc_check_update_thread,&data);
+//    pthread_join(t,NULL);
+//    printf("================ over ====================\n");
+
+// struct  ipc_check_update_thread_data  * data  = (struct ipc_check_update_thread_data *) arg;
+// char * service_name  = data->service_name;
+// int client_fd = data->client_fd;
     char buffer  [2048] ;
     HDService *service = hd_service_array_find_by_name(&g_service_array,service_name);
     if (service == NULL) {
         snprintf(buffer, sizeof(buffer), "Service %s not found\n", service_name);
         write(client_fd, buffer, strlen(buffer));
-        return NULL;
+        return ;
     }
     int ret = upgrade_service(service);
 
@@ -316,18 +361,8 @@ void * ipc_check_update_thread(void *arg){
     write(client_fd, buffer, strlen(buffer));
     write(client_fd, "================ ok ====================", strlen("================ ok ===================="));
     printf("================ ok2 ====================\n");
-    return NULL;
-}
 
-static void ipc_check_update(int client_fd,const char *service_name){
-   pthread_t t;
-   struct ipc_check_update_thread_data data = {
-        .client_fd = client_fd,
-        .service_name = (char*)service_name
-   };
-   pthread_create(&t,NULL,ipc_check_update_thread,&data);
-   pthread_join(t,NULL);
-   printf("================ over ====================\n");
+
 }
 
 /**
@@ -852,11 +887,11 @@ static int upgrade_service(HDService * service){
                 return 0;
             } else {
                 HD_LOGGER_INFO(TAG, "[update]%s download fail ！ %s\n",service->name,resp.url);
-                return -2;
+                return -5;
             }
         }else{
             HD_LOGGER_INFO(TAG, "[update]%s not need update !!! %s -> %s\n");
-            return 1;
+            return -3;
         } 
 }
 
