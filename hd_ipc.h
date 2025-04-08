@@ -19,6 +19,8 @@
 
 #endif
 
+#define HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE 64
+
 const char *ipc_print_help_str() {
     static const char *help_msg = 
         "hdinit commands:\n"
