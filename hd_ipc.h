@@ -5,8 +5,19 @@
 
 #define HD_IPC_VERSION 1
 // #define HD_IPC_SOCKET_PATH "/tmp/hd_ipc_socket"
-#define HD_IPC_SOCKET_PATH "/Users/xiangpengle/Downloads/hdinit/hd_ipc_socket"
+#define DEBUG 0
+
+#if DEBUG
+
 #define HD_IPC_SOCKET_PATH_FOR_CHILD "/Users/xiangpengle/Downloads/hdinit/hd_ipc_socket_for_execl_in_child"
+#define HD_IPC_SOCKET_PATH "/Users/xiangpengle/Downloads/hdinit/hd_ipc_socket"
+
+#else
+
+#define HD_IPC_SOCKET_PATH_FOR_CHILD "/root/hdinit/hd_ipc_socket_for_execl_in_child"
+#define HD_IPC_SOCKET_PATH "/root/hdinit/hd_ipc_socket"
+
+#endif
 
 const char *ipc_print_help_str() {
     static const char *help_msg = 

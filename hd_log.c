@@ -15,7 +15,7 @@
 
 #define TAG "hdlog"
 #define PREFIX ">>>>>>"
-#define VERSION "1.0.1"
+#define VERSION_LOG "1.0.2"
 
 volatile sig_atomic_t running = 1;
 
@@ -73,7 +73,7 @@ int main(int argc,const char *argv[]) {
     // sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
     const int  sid = getpid();
 
-    hd_child_info_encode(buffer,"hdlog",sid,VERSION);
+    hd_child_info_encode(buffer,"hdlog",sid,VERSION_LOG);
 
     write(sock_fd, buffer, strlen(buffer));
 

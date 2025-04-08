@@ -265,7 +265,7 @@ int hd_child_info_encode(char *dest, const char *s_name, int s_id, const char *s
  * @note 原函数签名中 s_id 为 int，无法通过参数返回，实际应为 int*！
  */
 int hd_child_info_decode(const char *source, char *s_name, int *s_id, char *s_version) {
-    if (!source || !s_name || !s_id || !s_version) {
+/*   if (!source || !s_name || !s_id || !s_version) {
         return -1; // 参数错误
     }
 
@@ -299,6 +299,31 @@ int hd_child_info_decode(const char *source, char *s_name, int *s_id, char *s_ve
     }
     strncpy(s_version, token, strlen(token) + 1);
 
-    free(input);
+    free(input);*/
+
+if (!source || !s_name || !s_id || !s_version) return -1;
+
+    // 查找第一个逗号（分隔 name 和 id）
+    const char *first_comma = strchr(source, ',');
+    if (!first_comma) return -1;
+
+    // 提取 name（从开头到第一个逗号）
+    size_t name_len = first_comma - source;
+    strncpy(s_name, source, name_len);
+    s_name[name_len] = '\0';
+
+    // 查找最后一个逗号（分隔 id 和 version）
+    const char *last_comma = strrchr(source, ',');
+    if (!last_comma || last_comma == first_comma) return -1;
+
+    // 提取 id（第一个逗号后到最后一个逗号前）
+    char id_str[20];
+    size_t id_len = last_comma - (first_comma + 1);
+    strncpy(id_str, first_comma + 1, id_len);
+    id_str[id_len] = '\0';
+    *s_id = atoi(id_str);
+
+    // 提取 version（最后一个逗号后到字符串结尾）
+    strcpy(s_version, last_comma + 1);
     return 0;
 }
