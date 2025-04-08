@@ -302,3 +302,14 @@ int hd_child_info_decode(const char *source, char *s_name, int *s_id, char *s_ve
     free(input);
     return 0;
 }
+
+
+void hd_print_buffer(const char *buff, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        if (buff[i] >= 32 && buff[i] <= 126) { // 可打印字符
+            printf("print_buffer buff[%zu] = '%c'\n", i, buff[i]);
+        } else { // 非打印字符
+            printf("print_buffer buff[%zu] = 0x%02x\n", i, (unsigned char)buff[i]);
+        }
+    }
+}

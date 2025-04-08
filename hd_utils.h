@@ -46,4 +46,7 @@ int  hd_child_info_encode( char *dest,const char * s_name, int s_id,const char *
 int  hd_child_info_decode( const char *source, char* s_name, int* s_id, char * s_version);
 
 
+void hd_print_buffer(const char *buff, size_t size);
+
+
 #endif // __HD_UTILS__
