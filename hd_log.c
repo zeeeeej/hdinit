@@ -68,7 +68,7 @@ int main(int argc,const char *argv[]) {
     /* 接受父进程的socked fd 进行通信  */
     int sock_fd = atoi(argv[1]);  // 获取父进程传递的 socket fd
 
-    char buffer[128];
+    char buffer[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE];
     // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
     // sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
     const int  sid = getpid();

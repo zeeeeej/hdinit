@@ -8,6 +8,8 @@
 #define HD_IPC_SOCKET_PATH "/Users/xiangpengle/Downloads/hdinit/hd_ipc_socket"
 #define HD_IPC_SOCKET_PATH_FOR_CHILD "/Users/xiangpengle/Downloads/hdinit/hd_ipc_socket_for_execl_in_child"
 
+#define HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE 64
+
 const char *ipc_print_help_str() {
     static const char *help_msg = 
         "hdinit commands:\n"

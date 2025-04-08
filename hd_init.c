@@ -175,12 +175,12 @@ static int op_start_service_internal( HDService *service)
         /* 接受子进程的状态数据 */
         // 接受子进程返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
         int client_fd = accept(sock_fd, NULL, NULL);
-        char status[256];
+        char status[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE] = {0};
         int len = read(client_fd, status, sizeof(status));
         printf("-------------------a\n");
-        hd_print_buffer(status,256);
+        hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
         status[len] = '\0';
-        hd_print_buffer(status,256);
+        hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
         printf("-------------------z\n");
         if (strlen(status)!=0)
         {
