@@ -18,6 +18,7 @@
 #include "hd_ipc.h"
 #include "hd_http.h"
 #include "hd_utils.h"
+#include "cJSON.h"
 
 #define PREFIX "######"
 
@@ -26,6 +27,9 @@ static int op_stop_service_internal( HDService *service);
 static int op_check_service_update_internal(HDService *service,hd_http_check_resp *resp);
 static void hd_init_exit();
 static int upgrade_service(HDService * service);
+static void progress_callback(double progress);
+static void write_to_client(int client_fd,const char * buffer,size_t buffer_size);
+static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_http_check_resp *resp);
 
 typedef struct
 {
@@ -178,7 +182,7 @@ static int op_start_service_internal( HDService *service)
         int client_fd = accept(sock_fd, NULL, NULL);
         char status[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE] = {0};
         int len = read(client_fd, status, sizeof(status));
-        printf("-------------------a:%d\n,len");
+        printf("-------------------a:%d\n",len);
         hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
         status[len] = '\0';
         hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
@@ -270,7 +274,7 @@ static int init_core_services()
 static void ipc_list_services(int client_fd) {
     char buffer  [2048] ;
     hd_service_array_print_result(&g_service_array,buffer);
-    write(client_fd, buffer, strlen(buffer));
+    write_to_client(client_fd, buffer, strlen(buffer));
 }
 
 static void ipc_show_service_detail(int client_fd,const char *service_name){
@@ -281,7 +285,7 @@ static void ipc_show_service_detail(int client_fd,const char *service_name){
     }
      char buffer[4096];
     hd_service_print_string(service,buffer);
-    write(client_fd, buffer, strlen(buffer));
+    write_to_client(client_fd, buffer, strlen(buffer));
 
 }
 
@@ -343,7 +347,7 @@ static void ipc_check_update(int client_fd,const char *service_name){
     HDService *service = hd_service_array_find_by_name(&g_service_array,service_name);
     if (service == NULL) {
         snprintf(buffer, sizeof(buffer), "Service %s not found\n", service_name);
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
         return ;
     }
     int ret = upgrade_service(service);
@@ -365,11 +369,29 @@ static void ipc_check_update(int client_fd,const char *service_name){
     else {
         snprintf(buffer, sizeof(buffer), "Service %s 无更新！（%d）\n\r", service_name,ret);
     }
-    write(client_fd, buffer, strlen(buffer));
-    write(client_fd, "================ ok ====================", strlen("================ ok ===================="));
+    write_to_client(client_fd, buffer, strlen(buffer));
+    write_to_client(client_fd, "================ ok ====================", strlen("================ ok ===================="));
     printf("================ ok2 ====================\n");
 
 
+}
+
+static void write_to_client(int client_fd,const char * buffer,size_t buffer_size){
+    struct timespec req = {0, 200000000}; // 0秒 + 200,000,000 纳秒 = 200ms
+    nanosleep(&req, NULL);
+    write(client_fd, buffer, buffer_size);
+}
+
+
+static void ipc_write_json_print_internal(int client_fd,const char * msg){
+    char result[HD_IPC_SOCKET_PATH_BUFF_SIZE];
+    HD_LOGGER_DEBUG(TAG,"%s\n",msg);
+    int ret = hd_ipc_json_print(msg,result);
+    if (ret!=0){
+        HD_LOGGER_ERROR(TAG,"ipc构建json失败\n");
+        return;
+    }
+    write_to_client(client_fd, result, strlen(result));
 }
 
 /**
@@ -379,26 +401,27 @@ static void ipc_check_update(int client_fd,const char *service_name){
  * 4.
  */
 static void handle_client_command(int client_fd, int argc, const char *argv[]) {
-    char buffer[1024];
+    char buffer[2048];
     char result [2048];
+    char s_out [2048];
     hd_printf_argc_argv(argc,argv,result);
     HD_LOGGER_INFO(TAG,"handle_client_command argc:%d ,result:%s\n",argc ,result);	
     if (argc <1) {
         snprintf(buffer, sizeof(buffer), "%s\n",ipc_print_help_str());
         printf("%s",buffer);
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
         return;
     }
 
     if (strcmp(argv[0], "-v") == 0) {
         snprintf(buffer, sizeof(buffer), "hdinit version %s\n", VERSION);
         HD_LOGGER_DEBUG(TAG,"%s handle_client_command:%s \n",buffer ,PREFIX);
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }  
     else if (strcmp(argv[0], "-h") == 0) {
         snprintf(buffer, sizeof(buffer),"%s",ipc_print_help_str());
         printf("%s",buffer);
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }  
     else if (strcmp(argv[0], "-l") == 0) {
         ipc_list_services(client_fd);
@@ -406,7 +429,7 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
     else if (strcmp(argv[0], "-d") == 0) {
         if (argc < 2) {
             snprintf(buffer, sizeof(buffer), "Usage: hdinit -d <service name>\n");
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         ipc_show_service_detail(client_fd, argv[1]);
@@ -415,20 +438,20 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
     else if (strcmp(argv[0], "start") == 0) {
         if (argc < 2) {
             snprintf(buffer, sizeof(buffer), "Usage: hdinit start <service name>\n");
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         HDService *service = hd_service_array_find_by_name(&g_service_array,argv[1]);
         if (service==NULL)
         {
             snprintf(buffer, sizeof(buffer), "Service %s not found\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         
         if (HD_SERVICE_STATUS_STARTED == service->status ) {
             snprintf(buffer, sizeof(buffer), "Service %s is already running\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         if (0 == op_start_service_internal(service)) {
@@ -436,23 +459,23 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
         } else {
             snprintf(buffer, sizeof(buffer), "Failed to start service %s\n", argv[1]);
         }
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
     else if (strcmp(argv[0], "stop") == 0) {
         if (argc < 2) {
             snprintf(buffer, sizeof(buffer), "Usage: hdinit stop <service name>\n");
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         HDService *service = hd_service_array_find_by_name(&g_service_array,argv[1]);
         if (service == NULL) {
             snprintf(buffer, sizeof(buffer), "Service %s not found\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         if (!(HD_SERVICE_STATUS_STARTED == service->status)) {
             snprintf(buffer, sizeof(buffer), "Service %s is not running\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         op_stop_service_internal(service);
@@ -464,23 +487,102 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
         } else {
             snprintf(buffer, sizeof(buffer), "Failed to stop service %s\n", argv[1]);
         }
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
-    else if (strcmp(argv[0], "check") == 0) {
+
+    else if (strcmp(argv[0], "check") == 0) { // start check
+        int check_ret;
+        char check_tmp[2048] = {0};
+        char check_result[2048] = {0};
+        hd_http_check_resp resp;
+        char destPath[1024] = {0};
+        char ota_path[1024] = {0};
+        /**
+         *  check <hdmain> [-y]
+         */
         if (argc < 2) {
-            snprintf(buffer, sizeof(buffer), "Usage: hdinit check <service name>\n");
-            write(client_fd, buffer, strlen(buffer));
+            snprintf(check_tmp, sizeof(check_tmp), "Usage: hdinit check <service name> [-y]\n");
+            ipc_write_json_print_internal(client_fd,check_tmp);
             return;
         }
-        ipc_check_update(client_fd,argv[1]);
+
+        // 原来实现
+        //ipc_check_update(client_fd,argv[1]);
+
+        // 新实现  
+        // 1.提取参数
+        int auto_update = 0;
+        if(3 == argc)
+        {
+            if
+            (
+                (strcmp(argv[2], "-y") == 0)||(strcmp(argv[2], "-Y") == 0) ||
+                (strcmp(argv[2], "-yes") == 0)||(strcmp(argv[2], "-YES") == 0)
+            )
+            {
+                auto_update = 1;
+            }
+        }
+        // 2.检查service
+        snprintf(check_tmp, sizeof(check_tmp), "[%s] Check Service ...\n", argv[1]);
+        ipc_write_json_print_internal(client_fd,check_tmp);
+
+        HDService *service = hd_service_array_find_by_name(&g_service_array,argv[1]);
+        if (service == NULL) 
+        {
+            snprintf(check_tmp, sizeof(check_tmp), "[%s] Service Not Found!！\n", argv[1]);
+            ipc_write_json_print_internal(client_fd,check_tmp);
+            return ;
+        }
+        snprintf(check_tmp, sizeof(check_tmp), "[%s] Service Found!！ \n-name:%s\n-pid:%d\n-version:%s\n", argv[1],service->name,service->pid,service->version);
+        ipc_write_json_print_internal(client_fd,check_tmp);
+
+        // 3.检查更新
+        snprintf(check_tmp, sizeof(check_tmp), "[%s] Check Version  ...\n", argv[1]);
+        ipc_write_json_print_internal(client_fd,check_tmp);       
+        if (op_check_service_update_internal(service,&resp)>0)
+        {
+            // ota地址
+            snprintf(ota_path, sizeof(ota_path), "%s/ota/%s", HD_INIT_ROOT,resp.filename);
+
+            snprintf(check_tmp, sizeof(check_tmp), "[%s](%s) Has New Version!!! \n-version:%s\n-url:%s\n-md5:%s\n-filename:%s\n", argv[1],service->version,resp.version,resp.url,resp.md5,resp.filename);
+            ipc_write_json_print_internal(client_fd,check_tmp);    
+
+            snprintf(check_tmp, sizeof(check_tmp), "输入y继续\n");
+            ipc_write_json_print_internal(client_fd,check_tmp);  
         
-        
-       
-    }
+            // 需要更新
+            check_ret = hd_ipc_json_resp_check_result(resp.url,resp.md5,resp.filename,service->name,resp.version,check_result);
+            HD_LOGGER_INFO(TAG,"hd_ipc_json_resp_check_result : %d %s\n",check_ret,check_result);
+            if (check_ret!=0)   return;
+            hd_print_buffer(check_result,strlen(check_result));
+            write_to_client(client_fd, check_result, strlen(check_result));
+
+            // 阻塞等待客户端回复
+            recv(client_fd, buffer, sizeof(buffer), 0);
+
+            // 7. 检查输入是否为 y
+            if (buffer[0] == 'y' || buffer[0] == 'Y') {
+                HD_LOGGER_DEBUG(TAG,"客户端确认，继续执行...\n");
+                // 后续逻辑...
+                service->update = 1;
+                check_ret = hd_ipc_continu_update(client_fd,service,&resp);
+                service->update = 0;
+            } else {
+                HD_LOGGER_DEBUG(TAG,"客户端取消操作。\n");
+            }
+
+            
+        } else{
+            snprintf(check_tmp, sizeof(check_tmp), "[%s] No Update ！\n", argv[1]);
+            ipc_write_json_print_internal(client_fd,check_tmp);             
+        }
+    } // end check   
+
     else if (strcmp(argv[0], "register") == 0) {
         if (argc < 3) {
             snprintf(buffer, sizeof(buffer), "Usage: hdinit register <service name> <path>\n");
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
 
@@ -499,18 +601,18 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
         } else {
             snprintf(buffer, sizeof(buffer), "Failed to register service %s\n", argv[1]);
         }
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
     else if (strcmp(argv[0], "unregister") == 0) {
         if (argc < 2) {
             snprintf(buffer, sizeof(buffer), "Usage: hdinit unregister <service name>\n");
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
         HDService *service = hd_service_array_find_by_name(&g_service_array,argv[1]);
         if (service == NULL) {
             snprintf(buffer, sizeof(buffer), "Service %s not found\n", argv[1]);
-            write(client_fd, buffer, strlen(buffer));
+            write_to_client(client_fd, buffer, strlen(buffer));
             return;
         }
 
@@ -520,20 +622,161 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
         } else {
             snprintf(buffer, sizeof(buffer), "Failed to unregister service %s\n", argv[1]);
         }
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
     else if (strcmp(argv[0], "shutdown") == 0) {
         snprintf(buffer, sizeof(buffer), "Shutting down all services...\n");
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
         opt_reboot_internal();
         service_manager_running = 0;
         snprintf(buffer, sizeof(buffer), "Bye!\n");
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
     else {
         snprintf(buffer, sizeof(buffer), "不支持的命令:[%s]!使用hdinit -h查看所有命令。\n",argv[0]);
-        write(client_fd, buffer, strlen(buffer));
+        write_to_client(client_fd, buffer, strlen(buffer));
     }
+}
+
+static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_http_check_resp *resp){
+                char  tmp[1024] = {0};
+                char  bak_path[1024] = {0};
+                char  new_path[1024] = {0};
+                int ret;
+               
+                //通知开始下载
+                snprintf(new_path, 1024, "%s/ota/%s", HD_INIT_ROOT,resp->filename);
+
+                snprintf(tmp, sizeof(tmp), "[%s] Downloading ...\n%s to %s ...\n", service->name,resp->url,new_path);
+                ipc_write_json_print_internal(client_fd,tmp);
+
+                ret = hd_http_download(resp->url, new_path, progress_callback);
+
+                if (ret==0)
+                {
+                    snprintf(tmp, sizeof(tmp), "[%s] Download success!\n", service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    // 备份老的程序
+                    snprintf(bak_path, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Backup Old ... \n%s->%s\n",service->name,service->path,bak_path );
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    ret = hd_cp_file(service->path,bak_path);
+                    if (ret)
+                    {
+                        snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Fail! \n",service->name);
+                        ipc_write_json_print_internal(client_fd,tmp);
+                        return -3;
+                    }
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Success!\n" ,service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    // 复制新程序 
+                    snprintf(tmp, sizeof(tmp), "[%s] Update New ...\n%s->%s\n",service->name,new_path,service->path );
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    ret = hd_cp_file(new_path,service->path);
+                    if (ret)
+                    {
+                        snprintf(tmp, sizeof(tmp), "[%s] Update New Fail! \n",service->name);
+                        ipc_write_json_print_internal(client_fd,tmp);
+                        return -4;
+                    }
+
+               
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Update New Success!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                   
+                    // 停止服务
+                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service  ...\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    op_stop_service_internal(service);
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service Completed!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+                    
+                    // 启动服务 
+                    sleep(5);
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Start Service ...\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    op_start_service_internal(service);
+                   
+                    snprintf(tmp, sizeof(tmp), "[%s] Start Service Completed!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    snprintf(tmp, sizeof(tmp), "[%s] Completed!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+
+                    return 0;
+                }
+                else 
+                {
+                    snprintf(tmp, sizeof(tmp), "[%s] Download fail!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+                    return -1;
+                }
+                return 0;
+                    
+            
+           
+}
+
+/**
+ * Deprecated
+ */
+static int hd_ipc_json_handle(int client_fd,char * buffer,size_t buffer_size){
+    // 解析 JSON 字符串
+    // hd_print_buffer(buffer,size);
+    char cmd[128] = {0};
+    cJSON *root = cJSON_Parse(buffer);
+    if (root == NULL) 
+    {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) 
+        {
+            // fprintf(stderr, "JSON parse error>>>: %s\n", error_ptr);
+        }
+        return -1;
+    }
+
+
+    // 提取 "cmd" 字段
+    cJSON *cmd_item = cJSON_GetObjectItem(root, "cmd");
+    if (cmd_item == NULL || !cJSON_IsString(cmd_item)) 
+    {
+        fprintf(stderr, "Failed to parse 'cmd' field\n");
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    if(strcmp("check",cmd) == 0)
+    {
+        // 升级
+            /* 
+        {
+            "cmd": "check",
+            "param": {
+                "url": "xxxxxxx",
+                "md5":"xxx",
+                "filename":"",
+                "service":"hdmain",
+                "version":"1.0.0"
+            }
+        }
+        */
+
+        
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -585,8 +828,23 @@ void *ipc_server_thread(void *arg)
         HD_LOGGER_ERROR(TAG,"ipc_server_thread socket accept client : [%d] \n",client_fd);
 
         char cmd[1024];
+        char json_buffer[1024];
+        int json_ret = 0;
         int n = read(client_fd, cmd, sizeof(cmd) - 1);
         if (n > 0) {
+
+            
+            /* cJSON a*/
+            json_ret = hd_ipc_json_handle(client_fd,cmd,sizeof(cmd));
+            
+            /* cJSON z*/
+
+            if (json_ret==0) 
+            {
+                // hd_ipc_json_handle处理完毕
+                continue;
+            }
+            
             cmd[n] = '\0';
             
             // 解析命令
@@ -602,8 +860,9 @@ void *ipc_server_thread(void *arg)
                 handle_client_command(client_fd, argc, argv);
             }
         }
-        HD_LOGGER_ERROR(TAG,"ipc_server_thread socket:[%d] close_client[%d]!!! \n",server_fd,client_fd);
-        close(client_fd);
+        int ret = close(client_fd);
+        HD_LOGGER_ERROR(TAG,"ipc_server_thread socket:[%d] close_client[%d] ret = %d \n",server_fd,client_fd,ret);
+        
     }
     HD_LOGGER_ERROR(TAG,"ipc_server_thread socket:[%d] closed!!! \n",server_fd);
     close(server_fd);
@@ -803,7 +1062,7 @@ static void monitor_services(){
     }
 }
 
-void progress_callback(double progress) {
+static void progress_callback(double progress) {
     HD_LOGGER_INFO(TAG,"-->progress:%d %%",progress);
   
     // // pthread_t current_tid = pthread_self();
@@ -892,7 +1151,9 @@ static int upgrade_service(HDService * service){
                 HD_LOGGER_INFO(TAG, "[update]%s start-service  !!! %s -> %s\n");
                 // service->update = 0;
                 return 0;
-            } else {
+            } 
+            else 
+            {
                 HD_LOGGER_INFO(TAG, "[update]%s download fail ！ %s\n",service->name,resp.url);
                 return -5;
             }
@@ -1017,7 +1278,7 @@ static void hd_init_sigint_handler(int sig){
 }
 
 /**
- *   gcc -o hd_init hd_init.c hd_logger.c hd_utils.c hd_service.c  -lpthread hd_http.c ./cJSON.c -lcurl
+ *   gcc -o hd_init hd_init.c hd_logger.c hd_utils.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -lcurl
  */
 int main(int argc, char const *argv[])
 {
@@ -1026,7 +1287,16 @@ int main(int argc, char const *argv[])
     //signal(SIGTSTP, hd_init_sigint_handler);  // 注册信号处理器 ctrl + z
     signal(SIGUSR1, hd_init_sigint_handler);  // kill -9
 
-    hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
+    if (HD_DEBUG)
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
+    }
+    else
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
+    }
+    
+  
 
     HD_LOGGER_INFO(TAG, "================================================\n");
     HD_LOGGER_INFO(TAG, "Starting hd_init service manager (version:%d ) ...\n", VERSION);

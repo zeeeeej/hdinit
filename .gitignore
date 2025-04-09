@@ -1,5 +1,9 @@
 */venv
 .DS_Store
-.vscode/
+.vscode/*
 *.o
 *.swp
+*/.service/*
+./server/files/*
+./.hdinit/bak/*
+./.hdinit/ota/*

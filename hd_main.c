@@ -19,9 +19,9 @@
 volatile sig_atomic_t running = 1;
 
 void handle_signal(int sig) {
-    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n");
+    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n",PREFIX);
     HD_LOGGER_INFO(TAG,"%s Main service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
-    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n");
+    HD_LOGGER_INFO(TAG,"%s %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \n",PREFIX);
     if (sig == SIGUSR1)
     {
       
@@ -38,9 +38,18 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc  hd_main.c hd_logger.c hd_utils.c -o ./server/files/hdmain-0.0.3
+ * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o hdmain  
+ * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdmain-0.0.3
  */
 int main(int argc,const char *argv[]) {
+    if (HD_DEBUG)
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
+    }
+    else
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
+    }
     HD_LOGGER_INFO(TAG,"%s Main service started (PID: %d)\n",PREFIX, getpid());
 
     if (argc<=1)

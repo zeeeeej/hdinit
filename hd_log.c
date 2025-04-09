@@ -49,11 +49,19 @@ void on_destory (){
 
 
 /**
- * gcc -o hdlog hd_log.c hd_logger.c hd_utils.c
- * gcc  hd_log.c hd_logger.c hd_utils.c -o ./server/files/hdlog-1.0.2
+ * gcc hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  -o hdlog
+ * gcc  hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdlog-1.0.2
  * 
  */
 int main(int argc,const char *argv[]) {
+    if (HD_DEBUG)
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
+    }
+    else
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
+    }
     HD_LOGGER_INFO(TAG,"%s Log service started (PID: %d)\n",PREFIX, getpid());
 
     signal(SIGUSR1, handle_signal);

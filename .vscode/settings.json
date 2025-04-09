@@ -24,6 +24,7 @@
         "__memory": "c",
         "version": "c",
         "algorithm": "c",
-        "complex": "c"
+        "complex": "c",
+        "__locale": "c"
     }
 }

@@ -15,9 +15,10 @@
 #include "hd_utils.h"
 #include <fcntl.h>
 #include <pthread.h>
+#include "cJSON.h"
+
 
 #define TAG "hdshell"
-
 
 volatile sig_atomic_t running = 1;
 
@@ -26,15 +27,142 @@ struct recv_thread_func_data
     int  sock_fd;
 } ;
 
+int send_command_to_hdinit(int argc,  const char *argv[]);
+
+/**
+ * 
+    {
+        "cmd"   : "print",
+        "param" : 
+        {
+            "msg"   : "Service [hdma] not found\n"
+        }
+    }
+ */
+static int parse_cmd(int sock_fd, const char  *buffer,size_t size){
+    char  cmd[128] = {0};
+    // 解析 JSON 字符串
+    // hd_print_buffer(buffer,256);
+    cJSON *root = cJSON_Parse(buffer);
+    if (root == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            // fprintf(stderr, "JSON parse error>>>: %s\n", error_ptr);
+        }
+        return -1;
+    }
+    // 提取 "cmd" 字段
+    cJSON *cmd_item = cJSON_GetObjectItem(root, "cmd");
+    if (cmd_item == NULL || !cJSON_IsString(cmd_item)) {
+        fprintf(stderr, "Failed to parse 'cmd' field\n");
+        cJSON_Delete(root);
+        return -1;
+    }
+    strncpy(cmd, cmd_item->valuestring, strlen(cmd_item->valuestring) + 1);
+
+    if(strcmp("print",cmd) == 0)
+    {
+
+
+        char  msg[1024] = {0};
+         // 提取嵌套的 "param.msg" 字段
+        cJSON *param_item = cJSON_GetObjectItem(root, "param");
+        if (param_item == NULL || !cJSON_IsObject(param_item)) {
+            fprintf(stderr, "Failed to parse 'param' object\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+
+        cJSON *msg_item = cJSON_GetObjectItem(param_item, "msg");
+        if (msg_item == NULL || !cJSON_IsString(msg_item)) {
+            fprintf(stderr, "Failed to parse 'msg' field\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+        strncpy(msg, msg_item->valuestring, strlen(msg_item->valuestring) + 1);
+
+        printf("> %s \n",msg);
+
+    } 
+    else if(strcmp("error",cmd) == 0)
+    {
+        
+        char  msg[1024] = {0};
+         // 提取嵌套的 "param.msg" 字段
+        cJSON *param_item = cJSON_GetObjectItem(root, "param");
+        if (param_item == NULL || !cJSON_IsObject(param_item)) {
+            fprintf(stderr, "Failed to parse 'param' object\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+
+        cJSON *error_item = cJSON_GetObjectItem(param_item, "error");
+        if (error_item == NULL || !cJSON_IsString(error_item)) {
+            fprintf(stderr, "Failed to parse 'msg' field\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+        strncpy(msg, error_item->valuestring, strlen(error_item->valuestring) + 1);
+
+        cJSON *error_code_item = cJSON_GetObjectItem(param_item, "code");
+        if (error_code_item == NULL || !cJSON_IsNumber(error_code_item)) {
+            fprintf(stderr, "Failed to parse 'msg' field\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+        int code = error_code_item->valueint;
+        printf("> %s (%d)\n",msg,code);
+    } 
+    else if(strcmp("check_result",cmd) == 0)
+    {
+        // {
+        //     "cmd": "check_result",
+        //     "param": {
+        //       "url": "http://10.13.13.114:5000/files/hdmain-0.0.4",
+        //       "md5": "ae1d2c8b2847941e6572479815637e7f",
+        //       "version": "0.0.4",
+        //       "service": "hdmain",
+        //       "filename": "hdmain-0.0.4"
+        //     }
+        //   }
+        
+        char input;
+        input = getchar();  // 读取一个字符
+            if (input == 'y' || input == 'Y') {
+                input = 'y';
+            }else{
+                input = 'n';
+            }
+        sprintf(cmd,"%c",input);	
+        write(sock_fd, cmd, strlen(cmd) );
+
+    }
+    else
+    {
+        HD_LOGGER_DEBUG(TAG,"parse_cmd not support %s \n",cmd);
+        return 0;
+    }
+    return 0;
+}
 
 void * recv_thread_func(void * arg){
     struct recv_thread_func_data *data = (struct recv_thread_func_data*)arg;
     // 接收响应
-    char buffer[1024];
+    char buffer[HD_IPC_SOCKET_PATH_BUFF_SIZE] = {0};
     int n;
+    int ret ;
     while ((n = read(data->sock_fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[n] = '\0';
-        HD_LOGGER_INFO(TAG,"%s\n",buffer);
+        // HD_LOGGER_DEBUG(TAG,"%s\n",buffer);
+        // 解析回复
+        buffer[strlen(buffer)] = '\0';
+        ret =  parse_cmd(data->sock_fd,buffer,strlen(buffer));
+        
+        if (ret!=0)
+        {
+                printf("$%s \n",buffer);
+        }
+        // reset
+        memset(buffer,0,sizeof(buffer));
     }
     return NULL;
 }
@@ -115,9 +243,17 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc hd_shell.c hd_logger.c hd_utils.c  -lpthread -o hdshell
+ * gcc hd_shell.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -lpthread -o hdshell
  */
 int main(int argc,  const char *argv[]) {
+    if (HD_DEBUG)
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
+    }
+    else
+    {
+        hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
+    }
     int debug = hd_check_argc_argv_has_debug(argc,argv); 
     if (debug == 0){
         hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);
@@ -203,6 +339,6 @@ int main(int argc,  const char *argv[]) {
             }
         }*/
 
-        HD_LOGGER_INFO(TAG,"<<< shell end ！！！！ \n", ret);
+    // HD_LOGGER_INFO(TAG,"<<< shell end ！！！！ \n", ret);
     return 0;
 }
