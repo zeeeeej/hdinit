@@ -184,8 +184,8 @@ static int op_start_service_internal( HDService *service)
         int len = read(client_fd, status, sizeof(status));
         printf("-------------------a:%d\n",len);
         hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
-        status[len] = '\0';
-        hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
+        //status[len] = '\0';
+        //hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
         printf("-------------------z\n");
         if (strlen(status)!=0)
         {
@@ -548,6 +548,15 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
             snprintf(check_tmp, sizeof(check_tmp), "[%s](%s) Has New Version!!! \n-version:%s\n-url:%s\n-md5:%s\n-filename:%s\n", argv[1],service->version,resp.version,resp.url,resp.md5,resp.filename);
             ipc_write_json_print_internal(client_fd,check_tmp);    
 
+          
+            if (auto_update)
+            {
+                service->update = 1;
+                check_ret = hd_ipc_continu_update(client_fd,service,&resp);
+                service->update = 0;
+                return ;
+            }
+
             snprintf(check_tmp, sizeof(check_tmp), "输入y继续\n");
             ipc_write_json_print_internal(client_fd,check_tmp);  
         
@@ -557,7 +566,7 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
             if (check_ret!=0)   return;
             hd_print_buffer(check_result,strlen(check_result));
             write_to_client(client_fd, check_result, strlen(check_result));
-
+            
             // 阻塞等待客户端回复
             recv(client_fd, buffer, sizeof(buffer), 0);
 
@@ -639,94 +648,91 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
 }
 
 static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_http_check_resp *resp){
-                char  tmp[4096] = {0};
-                char  bak_path[1024] = {0};
-                char  new_path[1024] = {0};
-                int ret;
-               
-                //通知开始下载
-                snprintf(new_path, 1024, "%s/ota/%s", HD_INIT_ROOT,resp->filename);
+    char  tmp[4096] = {0};
+    char  bak_path[1024] = {0};
+    char  new_path[1024] = {0};
+    int ret;
+    
+    //通知开始下载
+    snprintf(new_path, 1024, "%s/ota/%s", HD_INIT_ROOT,resp->filename);
 
-                snprintf(tmp, sizeof(tmp), "[%s] Downloading ...\n%s to %s ...\n", service->name,resp->url,new_path);
-                ipc_write_json_print_internal(client_fd,tmp);
+    snprintf(tmp, sizeof(tmp), "[%s] Downloading ...\n%s to %s ...\n", service->name,resp->url,new_path);
+    ipc_write_json_print_internal(client_fd,tmp);
 
-                ret = hd_http_download(resp->url, new_path, progress_callback);
+    ret = hd_http_download(resp->url, new_path, progress_callback);
 
-                if (ret==0)
-                {
-                    snprintf(tmp, sizeof(tmp), "[%s] Download success!\n", service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+    if (ret==0)
+    {
+        snprintf(tmp, sizeof(tmp), "[%s] Download success!\n", service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                    // 备份老的程序
-                    snprintf(bak_path, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
+        // 备份老的程序
+        snprintf(bak_path, 1024, "%s/bak/%s-%s", HD_INIT_ROOT,hd_get_filename(service->path),service->version);
 
-                    snprintf(tmp, sizeof(tmp), "[%s] Backup Old ... \n%s->%s\n",service->name,service->path,bak_path );
-                    ipc_write_json_print_internal(client_fd,tmp);
+        snprintf(tmp, sizeof(tmp), "[%s] Backup Old ... \n%s->%s\n",service->name,service->path,bak_path );
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                    ret = hd_cp_file(service->path,bak_path);
-                    if (ret)
-                    {
-                        snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Fail! \n",service->name);
-                        ipc_write_json_print_internal(client_fd,tmp);
-                        return -3;
-                    }
+        ret = hd_cp_file(service->path,bak_path);
+        if (ret)
+        {
+            snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Fail! \n",service->name);
+            ipc_write_json_print_internal(client_fd,tmp);
+            return -3;
+        }
 
-                    snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Success!\n" ,service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
-		    
-		    // 停止服务
-                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service  ...\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+        snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Success!\n" ,service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                    op_stop_service_internal(service);
+        // 停止服务
+        snprintf(tmp, sizeof(tmp), "[%s] Stop Service  ...\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
 
-		    sleep(5);
-                    
-		    snprintf(tmp, sizeof(tmp), "[%s] Stop Service Completed!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
-                    
-		    
-		    // 复制新程序 
-                    snprintf(tmp, sizeof(tmp), "[%s] Update New ...\n%s->%s\n",service->name,new_path,service->path );
-                    ipc_write_json_print_internal(client_fd,tmp);
+        op_stop_service_internal(service);
 
-                    ret = hd_cp_file(new_path,service->path);
-                    if (ret)
-                    {
-                        snprintf(tmp, sizeof(tmp), "[%s] Update New Fail! \n",service->name);
-                        ipc_write_json_print_internal(client_fd,tmp);
-                        return -4;
-                    }
+        sleep(5);
+        
+        snprintf(tmp, sizeof(tmp), "[%s] Stop Service Completed!\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
+        
 
-                    sleep(1);
-                    snprintf(tmp, sizeof(tmp), "[%s] Update New Success!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+        // 复制新程序 
+        snprintf(tmp, sizeof(tmp), "[%s] Update New ...\n%s->%s\n",service->name,new_path,service->path );
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                                        
-                    // 启动服务 
-                    snprintf(tmp, sizeof(tmp), "[%s] Start Service ...\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+        ret = hd_cp_file(new_path,service->path);
+        if (ret)
+        {
+            snprintf(tmp, sizeof(tmp), "[%s] Update New Fail! \n",service->name);
+            ipc_write_json_print_internal(client_fd,tmp);
+            return -4;
+        }
 
-                    op_start_service_internal(service);
-                   
-                    snprintf(tmp, sizeof(tmp), "[%s] Start Service Completed!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+        sleep(1);
+        snprintf(tmp, sizeof(tmp), "[%s] Update New Success!\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                    snprintf(tmp, sizeof(tmp), "[%s] Completed!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
+                            
+        // 启动服务 
+        snprintf(tmp, sizeof(tmp), "[%s] Start Service ...\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
 
-                    return 0;
-                }
-                else 
-                {
-                    snprintf(tmp, sizeof(tmp), "[%s] Download fail!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
-                    return -1;
-                }
-                return 0;
-                    
-            
-           
+        op_start_service_internal(service);
+        
+        snprintf(tmp, sizeof(tmp), "[%s] Start Service Completed!\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
+
+        snprintf(tmp, sizeof(tmp), "[%s] Completed!\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
+
+        return 0;
+    }
+    else 
+    {
+        snprintf(tmp, sizeof(tmp), "[%s] Download fail!\n",service->name);
+        ipc_write_json_print_internal(client_fd,tmp);
+        return -1;
+    }
+    return 0;          
 }
 
 /**
@@ -1027,6 +1033,8 @@ static void opt_reboot_internal(){
     
    // reboot(RB_AUTOBOOT);  // 发起重启
    hd_trigger_reboot();
+   sleep(3);
+   exit(0);
 }
 
 /**
@@ -1144,7 +1152,7 @@ static int upgrade_service(HDService * service){
                  op_stop_service_internal(service);
                  HD_LOGGER_INFO(TAG, "[update]%s stop-service complete!!! \n");
                  sleep(5);
-                 
+
                 /* 复制新程序   */
                 ret = hd_cp_file(buff,service->path);
                 if (ret)
@@ -1290,6 +1298,8 @@ static void hd_init_sigint_handler(int sig){
 
 /**
  *   gcc -o hd_init hd_init.c hd_logger.c hd_utils.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -lcurl
+ *   
+ *   cp .hdinit/bak/hdmain-0.0.3 ./.service/hdmain
  */
 int main(int argc, char const *argv[])
 {
