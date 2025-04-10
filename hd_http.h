@@ -1,6 +1,7 @@
 
 #ifndef __HD_HTTP__
 #define __HD_HTTP__
+#include "hd_context.h"
 
 #if HD_CONTEXT
 #define HOST "http://192.168.1.96:5002"

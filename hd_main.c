@@ -14,7 +14,7 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.4"
+#define VERSION "0.0.3"
 
 volatile sig_atomic_t running = 1;
 
@@ -38,8 +38,8 @@ void handle_signal(int sig) {
 }
 
 /**
- * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o hdmain  
- * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdmain-0.0.3
+ * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./.service/hdmain  
+ * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdmain-0.0.5
  */
 int main(int argc,const char *argv[]) {
     if (HD_DEBUG)
