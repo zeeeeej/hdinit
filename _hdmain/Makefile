@@ -2,33 +2,41 @@
 CC = arm-buildroot-linux-gnueabihf-gcc
 
 # 编译选项
-#CFLAGS = -I/usr/local/imx6ull/curl/include -I/usr/local/imx6ull/ssl/include
-#LDFLAGS = -L/usr/local/imx6ull/curl/lib -L/usr/local/imx6ull/ssl/lib
-#LIBS = -lcurl -lssl -lcrypto -lpthread 
+CFLAGS = -I/usr/local/imx6ull/curl/include -I/usr/local/imx6ull/ssl/include
+LDFLAGS = -L/usr/local/imx6ull/curl/lib -L/usr/local/imx6ull/ssl/lib
+LIBS = -lcurl -lssl -lcrypto -lpthread
 
-# 源文件
-SRCS =../hd_main.c ../hd_logger.c ../hd_utils.c
+# 源文件目录和文件
+SRC_DIR = ..
+SRCS = $(SRC_DIR)/hd_main.c $(SRC_DIR)/hd_logger.c $(SRC_DIR)/hd_utils.c \
+       $(SRC_DIR)/cJSON.c \
+       ${SRC_DIR}/hd_ipc.c		
 
-# 目标文件
-OBJS = $(SRCS:.c=.o)
+# 目标文件目录和文件
+BUILD_DIR = build
+OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # 可执行文件
-TARGET = hdmain
+TARGET = $(BUILD_DIR)/hdmain
 
 # 默认目标
-all: $(TARGET)
+all: $(BUILD_DIR) $(TARGET)
+
+# 创建构建目录
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
 # 生成可执行文件
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-# 编译源文件
-%.o: %.c
+# 编译源文件到目标目录
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 清理生成的文件
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -rf $(BUILD_DIR)
 
 # 伪目标
 .PHONY: all clean
