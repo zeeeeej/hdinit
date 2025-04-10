@@ -1138,6 +1138,13 @@ static int upgrade_service(HDService * service){
                     return -3;
                 }
                 HD_LOGGER_INFO(TAG, "[update]%s backup complete!!! %s -> %s\n",service->path,destPath);
+                
+                
+                 /* 停止服务 */
+                 op_stop_service_internal(service);
+                 HD_LOGGER_INFO(TAG, "[update]%s stop-service complete!!! \n");
+                 sleep(5);
+                 
                 /* 复制新程序   */
                 ret = hd_cp_file(buff,service->path);
                 if (ret)
@@ -1148,11 +1155,8 @@ static int upgrade_service(HDService * service){
                 HD_LOGGER_INFO(TAG, "[update]%s update complete!!! %s -> %s\n",buff,service->path);
                 service->update = 1;
                
-                /* 停止服务 */
-                op_stop_service_internal(service);
-                HD_LOGGER_INFO(TAG, "[update]%s stop-service complete!!! \n");
+            
                 /* 启动服务 */
-                sleep(5);
                 HD_LOGGER_INFO(TAG, "[update]%s sleep 5s ... !!! %s -> %s\n");
                 op_start_service_internal(service);
                 HD_LOGGER_INFO(TAG, "[update]%s start-service  !!! %s -> %s\n");
