@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # 配置路径
 FILE_DIR = "./files"
-CONFIG_FILE = FILE_DIR+"/update_config.json"
+CONFIG_FILE = FILE_DIR+"/update_config_imx6ull.json"
 
 os.makedirs(FILE_DIR, exist_ok=True)
 
@@ -85,4 +85,4 @@ def download_file(filename):
     return send_from_directory(FILE_DIR, filename, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
