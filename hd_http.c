@@ -300,6 +300,8 @@ int hd_http_download(const char *url, const char *download_path, void (*callback
         printf("hd_http_download curl_easy_perform %d(%s)\n",errno,strerror(errno));
     }
 
+    fchmod(fileno(fp),0755);
+
     fclose(fp);
     curl_easy_cleanup(curl);
 

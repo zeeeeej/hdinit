@@ -14,7 +14,7 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.3"
+#define VERSION "0.0.4"
 
 volatile sig_atomic_t running = 1;
 

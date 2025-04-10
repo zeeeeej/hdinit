@@ -639,7 +639,7 @@ static void handle_client_command(int client_fd, int argc, const char *argv[]) {
 }
 
 static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_http_check_resp *resp){
-                char  tmp[1024] = {0};
+                char  tmp[4096] = {0};
                 char  bak_path[1024] = {0};
                 char  new_path[1024] = {0};
                 int ret;
@@ -673,8 +673,20 @@ static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_ht
 
                     snprintf(tmp, sizeof(tmp), "[%s] Bakup Old Success!\n" ,service->name);
                     ipc_write_json_print_internal(client_fd,tmp);
+		    
+		    // 停止服务
+                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service  ...\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
 
-                    // 复制新程序 
+                    op_stop_service_internal(service);
+
+		    sleep(5);
+                    
+		    snprintf(tmp, sizeof(tmp), "[%s] Stop Service Completed!\n",service->name);
+                    ipc_write_json_print_internal(client_fd,tmp);
+                    
+		    
+		    // 复制新程序 
                     snprintf(tmp, sizeof(tmp), "[%s] Update New ...\n%s->%s\n",service->name,new_path,service->path );
                     ipc_write_json_print_internal(client_fd,tmp);
 
@@ -686,24 +698,12 @@ static int hd_ipc_continu_update(int client_fd, HDService * service ,const hd_ht
                         return -4;
                     }
 
-               
-
+                    sleep(1);
                     snprintf(tmp, sizeof(tmp), "[%s] Update New Success!\n",service->name);
                     ipc_write_json_print_internal(client_fd,tmp);
 
-                   
-                    // 停止服务
-                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service  ...\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
-
-                    op_stop_service_internal(service);
-
-                    snprintf(tmp, sizeof(tmp), "[%s] Stop Service Completed!\n",service->name);
-                    ipc_write_json_print_internal(client_fd,tmp);
-                    
+                                        
                     // 启动服务 
-                    sleep(5);
-
                     snprintf(tmp, sizeof(tmp), "[%s] Start Service ...\n",service->name);
                     ipc_write_json_print_internal(client_fd,tmp);
 
@@ -1012,14 +1012,21 @@ static void opt_reboot_internal(){
     HD_LOGGER_DEBUG(TAG,"opt_reboot_internal !!! \n");
     sync();  // 确保数据写入磁盘
     sleep(1);
+    HD_LOGGER_DEBUG(TAG,"opt_reboot_internal !!! synced \n");
     for(int i=0;i<g_service_array.count;i++){
         op_stop_service_internal(&g_service_array.services[i]);
     }
     service_manager_running = 0;
 
-    //reboot(RB_AUTOBOOT);  // 发起重启
-    sleep(10); // 给时间保存数据
-    kill(getpid(),SIGKILL);
+    HD_LOGGER_DEBUG(TAG,"opt_reboot_internal !!! all-stopped \n");
+   // sleep(5); // 给时间保存数据
+   // HD_LOGGER_DEBUG(TAG,"opt_reboot_internal !!! kill...\n");
+   // kill(getpid(),SIGKILL);
+   // HD_LOGGER_DEBUG(TAG,"opt_reboot_internal !!! killed \n");
+    sleep(3);
+    
+   // reboot(RB_AUTOBOOT);  // 发起重启
+   hd_trigger_reboot();
 }
 
 /**
@@ -1036,7 +1043,7 @@ void signal_handle_reboot(int sig) {
 static void monitor_services(){
 
 
-    if (start_main_service_count>MAX_RESTART_MAIN)
+    if (start_main_service_count>=MAX_RESTART_MAIN)
     {
         hd_init_exit();
         return;

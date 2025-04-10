@@ -338,3 +338,15 @@ void hd_print_buffer(const char *buff, size_t size) {
         }
     }
 }
+
+
+void hd_trigger_reboot(){
+	 int fd = open("/proc/sysrq-trigger", O_WRONLY);
+    if (fd >= 0) {
+        write(fd, "b", 1);  // 发送 'b' 触发重启
+        close(fd);
+    }else{
+    	printf("hd_trigger_reboot fail !\n");
+	system("reboot");
+    }
+}

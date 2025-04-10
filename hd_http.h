@@ -2,7 +2,8 @@
 #ifndef __HD_HTTP__
 #define __HD_HTTP__
 
-#define HOST "http://10.13.13.114:5000"
+//#define HOST "http://10.13.13.114:5000"
+#define HOST "http://192.168.1.96:5001"
 #define API_CHECK_UPDATE "/checkupdate"
 #define API_DOWNLOAD_FILES "/files"
 

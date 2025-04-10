@@ -48,5 +48,6 @@ int  hd_child_info_decode( const char *source, char* s_name, int* s_id, char * s
 
 void hd_print_buffer(const char *buff, size_t size);
 
+void hd_trigger_reboot();
 
 #endif // __HD_UTILS__
