@@ -148,7 +148,48 @@ int hd_ipc_json_resp_check_result(
     cJSON_AddStringToObject(param, "version", version);
     cJSON_AddStringToObject(param, "service", service);
     cJSON_AddStringToObject(param, "filename", filename);
-    
+
+    cJSON_AddItemToObject(root, "param", param);
+
+    // 生成 JSON 字符串
+    char *json_str = cJSON_PrintUnformatted(root);
+    if (json_str == NULL) {
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    // 确保 json_result 有足够空间，并复制结果
+    strncpy(json_result, json_str, strlen(json_str) + 1);
+
+    // 释放内存
+    free(json_str);
+    cJSON_Delete(root);
+
+    return 0;  // 成功
+}
+
+
+int hd_ipc_json_resp_progress(
+    int progress,
+    char *json_result
+) {
+    if (json_result == NULL) {
+        return -1;  // 参数检查
+    }
+
+    cJSON *root = cJSON_CreateObject();  // 创建根 JSON 对象
+    if (root == NULL) {
+        return -1;  // 内存分配失败
+    }
+
+    cJSON_AddStringToObject(root, "cmd", "progress");
+
+    cJSON *param = cJSON_CreateObject();
+    if (param == NULL) {
+        cJSON_Delete(root);
+        return -1;
+    }
+    cJSON_AddNumberToObject(param, "progress", progress);
     cJSON_AddItemToObject(root, "param", param);
 
     // 生成 JSON 字符串

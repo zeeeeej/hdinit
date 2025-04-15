@@ -50,4 +50,82 @@ void hd_print_buffer(const char *buff, size_t size);
 
 void hd_trigger_reboot();
 
+
+
+
+
+#define HASH_SIZE 128
+
+// 值类型枚举
+typedef enum {
+    MAP_INT,
+    MAP_FLOAT,
+    MAP_DOUBLE,
+    MAP_STRING,
+    MAP_POINTER
+} ValueType;
+
+// 通用值结构
+typedef struct {
+    ValueType type;
+    union {
+        int int_val;
+        float float_val;
+        double double_val;
+        char* string_val;
+        void* pointer_val;
+    } data;
+} MapValue;
+
+// 哈希表节点
+typedef struct HashNode {
+    char* key;
+    MapValue value;
+    struct HashNode* next;
+} HashNode;
+
+// 哈希表结构
+typedef struct {
+    HashNode* buckets[HASH_SIZE];
+} HashMap;
+
+// 哈希函数
+unsigned int hash(const char* key) ;
+
+// 初始化哈希表
+void map_init(HashMap* map);
+
+// 插入键值对
+void map_put(HashMap* map, const char* key, MapValue value) ;
+
+// 获取值
+int map_get(HashMap* map, const char* key, MapValue* out_value) ;
+
+// 删除键值对
+int map_remove(HashMap* map, const char* key) ;
+
+// 释放整个哈希表
+void map_free(HashMap* map) ;
+
+// 创建各种类型的值
+MapValue map_make_int(int val);
+
+MapValue map_make_float(float val) ;
+
+MapValue map_make_double(double val) ;
+
+MapValue map_make_string(const char* val) ;
+
+MapValue map_make_pointer(void* val);
+
+// 打印值
+void print_value(MapValue value) ;
+
+// 打印值
+void map_print(HashMap* map) ;
+
+void map_print_debug(HashMap* map) ;
+
+void map_pretty_print(HashMap* map);
+
 #endif // __HD_UTILS__

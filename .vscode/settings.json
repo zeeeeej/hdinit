@@ -25,6 +25,9 @@
         "version": "c",
         "algorithm": "c",
         "complex": "c",
-        "__locale": "c"
-    }
+        "__locale": "c",
+        "types.h": "c",
+        "variant": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

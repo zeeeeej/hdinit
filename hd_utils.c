@@ -350,3 +350,256 @@ void hd_trigger_reboot(){
 	system("reboot");
     }
 }
+
+
+
+
+
+// 哈希函数
+unsigned int hash(const char* key) {
+    unsigned int hash = 5381;
+    int c;
+    while ((c = *key++)) {
+        hash = ((hash << 5) + hash) + c; // hash * 33 + c
+    }
+    return hash % HASH_SIZE;
+}
+
+// 初始化哈希表
+void map_init(HashMap* map) {
+    for (int i = 0; i < HASH_SIZE; i++) {
+        map->buckets[i] = NULL;
+    }
+}
+
+// 插入键值对
+void map_put(HashMap* map, const char* key, MapValue value) {
+    unsigned int index = hash(key);
+    
+    // 检查key是否已存在
+    HashNode* current = map->buckets[index];
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            // 更新现有值
+            free(current->value.data.string_val); // 释放旧字符串内存（如果有）
+            current->value = value;
+            return;
+        }
+        current = current->next;
+    }
+    
+    // 创建新节点
+    HashNode* newNode = (HashNode*)malloc(sizeof(HashNode));
+    newNode->key = strdup(key);
+    newNode->value = value;
+    newNode->next = map->buckets[index];
+    map->buckets[index] = newNode;
+}
+
+// 获取值
+int map_get(HashMap* map, const char* key, MapValue* out_value) {
+    unsigned int index = hash(key);
+    HashNode* current = map->buckets[index];
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            *out_value = current->value;
+            return 1;
+        }
+        current = current->next;
+    }
+    return 0;
+}
+
+// 删除键值对
+int map_remove(HashMap* map, const char* key) {
+    unsigned int index = hash(key);
+    HashNode* current = map->buckets[index];
+    HashNode* prev = NULL;
+    
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            if (prev == NULL) {
+                map->buckets[index] = current->next;
+            } else {
+                prev->next = current->next;
+            }
+            
+            // 释放内存
+            free(current->key);
+            if (current->value.type == MAP_STRING) {
+                free(current->value.data.string_val);
+            }
+            free(current);
+            return 1;
+        }
+        prev = current;
+        current = current->next;
+    }
+    return 0;
+}
+
+// 释放整个哈希表
+void map_free(HashMap* map) {
+    for (int i = 0; i < HASH_SIZE; i++) {
+        HashNode* current = map->buckets[i];
+        while (current != NULL) {
+            HashNode* temp = current;
+            current = current->next;
+            
+            free(temp->key);
+            if (temp->value.type == MAP_STRING) {
+                free(temp->value.data.string_val);
+            }
+            free(temp);
+        }
+    }
+}
+
+// 创建各种类型的值
+MapValue map_make_int(int val) {
+    MapValue v;
+    v.type = MAP_INT;
+    v.data.int_val = val;
+    return v;
+}
+
+MapValue map_make_float(float val) {
+    MapValue v;
+    v.type = MAP_FLOAT;
+    v.data.float_val = val;
+    return v;
+}
+
+MapValue map_make_double(double val) {
+    MapValue v;
+    v.type = MAP_DOUBLE;
+    v.data.double_val = val;
+    return v;
+}
+
+MapValue map_make_string(const char* val) {
+    MapValue v;
+    v.type = MAP_STRING;
+    v.data.string_val = strdup(val);
+    return v;
+}
+
+MapValue map_make_pointer(void* val) {
+    MapValue v;
+    v.type = MAP_POINTER;
+    v.data.pointer_val = val;
+    return v;
+}
+
+// 打印值
+void print_value(MapValue value) {
+    switch (value.type) {
+        case MAP_INT:
+            printf("%d", value.data.int_val);
+            break;
+        case MAP_FLOAT:
+            printf("%f", value.data.float_val);
+            break;
+        case MAP_DOUBLE:
+            printf("%lf", value.data.double_val);
+            break;
+        case MAP_STRING:
+            printf("\"%s\"", value.data.string_val);
+            break;
+        case MAP_POINTER:
+            printf("%p", value.data.pointer_val);
+            break;
+        default:
+            printf("(unknown type)");
+    }
+}
+
+
+// 打印单个键值对
+static void print_map_entry(const char* key, MapValue value) {
+    printf("'%s' => ", key);
+    
+    switch (value.type) {
+        case MAP_INT:
+            printf("%d (int)\n", value.data.int_val);
+            break;
+        case MAP_FLOAT:
+            printf("%f (float)\n", value.data.float_val);
+            break;
+        case MAP_DOUBLE:
+            printf("%lf (double)\n", value.data.double_val);
+            break;
+        case MAP_STRING:
+            printf("\"%s\" (string)\n", value.data.string_val);
+            break;
+        case MAP_POINTER:
+            printf("%p (pointer)\n", value.data.pointer_val);
+            break;
+        default:
+            printf("(unknown type)\n");
+    }
+}
+
+// 打印整个HashMap
+void map_print(HashMap* map) {
+    // printf("HashMap Contents:\n");
+    // printf("=================\n");
+    
+    // int total_entries = 0;
+    
+    // for (int i = 0; i < HASH_SIZE; i++) {
+    //     HashNode* current = map->buckets[i];
+    //     while (current != NULL) {
+    //         print_map_entry(current->key, current->value);
+    //         total_entries++;
+    //         current = current->next;
+    //     }
+    // }
+    
+    // printf("=================\n");
+    // printf("Total entries: %d\n", total_entries);
+    // printf("Bucket count: %d\n", HASH_SIZE);
+    map_pretty_print(map);
+}
+
+void map_print_debug(HashMap* map) {
+    // printf("HashMap Debug View:\n");
+    // printf("==================\n");
+    
+    // for (int i = 0; i < HASH_SIZE; i++) {
+    //     HashNode* current = map->buckets[i];
+    //     if (current != NULL) {
+    //         printf("Bucket %d:\n", i);
+    //         while (current != NULL) {
+    //             printf("  ");
+    //             print_map_entry(current->key, current->value);
+    //             current = current->next;
+    //         }
+    //     }
+    // }
+    map_pretty_print(map);
+}
+
+void map_pretty_print(HashMap* map) {
+    printf("{\n");
+    
+    for (int i = 0; i < HASH_SIZE; i++) {
+        HashNode* current = map->buckets[i];
+        while (current != NULL) {
+            printf("  \"%s\": ", current->key);
+            
+            switch (current->value.type) {
+                case MAP_INT:    printf("%d", current->value.data.int_val); break;
+                case MAP_FLOAT:  printf("%.2f", current->value.data.float_val); break;
+                case MAP_DOUBLE: printf("%.2lf", current->value.data.double_val); break;
+                case MAP_STRING: printf("\"%s\"", current->value.data.string_val); break;
+                case MAP_POINTER:printf("\"%p\"", current->value.data.pointer_val); break;
+            }
+            
+            printf(",\n");
+            current = current->next;
+        }
+    }
+    
+    printf("}\n");
+}

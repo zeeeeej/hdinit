@@ -80,6 +80,9 @@ int hd_service_array_find_index_by_name(const HDServiceArray *sa, const char *na
 // 根据名称查找服务指针 (NULL表示未找到)
 HDService* hd_service_array_find_by_name(HDServiceArray *sa, const char *name);
 
+// 根据名称查找服务指针 (NULL表示未找到)
+HDService* hd_service_array_find_by_pid(HDServiceArray *sa, int pid);
+
 // 根据索引获取服务指针 (NULL表示无效索引)
 HDService* hd_service_array_get_by_index(HDServiceArray *sa, int index);
 

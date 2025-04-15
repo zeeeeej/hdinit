@@ -21,6 +21,12 @@
 #define HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE 64
 #define HD_IPC_SOCKET_PATH_BUFF_SIZE 4096
 
+#if HD_CONTEXT
+#define HD_IPC_HEART_BEAT "./.hdinit/heartbeat"
+#else
+#define HD_IPC_HEART_BEAT "/root/.hdinit/heartbeat"
+#endif
+
 const char * ipc_print_help_str() ;
 
 void ipc_print_help() ;
@@ -48,6 +54,12 @@ int hd_ipc_json_resp_check_result(
     const char *filename,
     const char *service,
     const char *version,
+    char *json_result
+);
+
+
+int hd_ipc_json_resp_progress(
+    int progress,
     char *json_result
 );
 

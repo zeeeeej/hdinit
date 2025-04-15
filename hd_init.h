@@ -9,7 +9,7 @@
 #define SPIT ""
 #define TAG "hdinit"
 #define DEBUG 0
-#define MONITOR_SERVICES_INTERVAL 30
+#define MONITOR_SERVICES_INTERVAL 30*60
 #define UPGRADE_SERVICES_INTERVAL 24*60*60
 #define MAX_SERVICES 20
 #define MAX_RESTART_MAIN 5
@@ -65,5 +65,7 @@ atomic_int service_manager_running = 1;
 atomic_int start_main_service_count = 0;
 
 atomic_int service_manager_running_count = 0;
+
+atomic_int ping_pong_index = 0;
 
 #endif // __HD_INIT__

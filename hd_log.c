@@ -17,23 +17,6 @@
 #define PREFIX ">>>>>>"
 #define VERSION_LOG "1.0.2"
 
-volatile sig_atomic_t running = 1;
-
-void handle_signal(int sig) {
-    HD_LOGGER_INFO(TAG,"%s Log service handle_signal (PID: %d) sig=%d\n", PREFIX,getpid(),sig);
-    if (sig == SIGUSR1)
-    {
-      
-    }
-    else if (sig == SIGUSR2)
-    {
-        running=0;
-    }
-    else {
-      
-    }
-}
-
 void on_init (){
 
 }
@@ -47,9 +30,15 @@ void on_destory (){
 }
 
 
+static void exit_from_parent(){
+    HD_LOGGER_INFO(TAG,"%s Log service exit!\n",PREFIX);
+    HD_LOGGER_INFO(TAG,"%s Log service exit!\n",PREFIX);
+    HD_LOGGER_INFO(TAG,"%s Log service exit!\n",PREFIX);
+}
+
 
 /**
- * gcc hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  -o hdlog
+ * gcc hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_service_interface.c -o ./.service/hdlog
  * gcc  hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdlog-1.0.2
  * 
  */
@@ -63,69 +52,17 @@ int main(int argc,const char *argv[]) {
         hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
     }
     HD_LOGGER_INFO(TAG,"%s Log service started (PID: %d)\n",PREFIX, getpid());
-
-    signal(SIGUSR1, handle_signal);
-    signal(SIGUSR2, handle_signal);
-
-    hd_service_interface interface =  {
-        .hd_service_init = on_init,
-        .hd_service_on_start = on_start,
-        .hd_service_on_destory = on_destory
-    };
-
-    /* 接受父进程的socked fd 进行通信  */
-    int sock_fd = atoi(argv[1]);  // 获取父进程传递的 socket fd
-
-    char buffer[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE];
-    // 返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号> 
-    // sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
-    const int  sid = getpid();
-
-    hd_child_info_encode(buffer,"hdlog",sid,VERSION_LOG);
-
-    write(sock_fd, buffer, strlen(buffer));
-
-    close(sock_fd);
-    /* 接受父进程的socked fd 进行通信  end*/
-
-    
-
-    //signal(SIGKILL, handle_signal);
+    hd_service_interface_init(argv[1],"hdlog",VERSION_LOG,5,exit_from_parent);
     int index = 0;
-    // 日志服务逻辑
-
-    //int ret = kill(getppid(), SIGUSR1);  // 向父进程发送信号
-
-    /*
-    sleep(1);
-    // if (ret !=0)
-    // {
-    //     HD_LOGGER_ERROR(TAG,">>>>>> kill %d(%s)\n",errno,strerror(errno));
-    // }else{
-        int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-        struct sockaddr_un addr = { .sun_family = AF_UNIX };
-        strcpy(addr.sun_path, HD_IPC_SOCKET_PATH_FOR_CHILD);
-        connect(sockfd, (struct sockaddr*)&addr, sizeof(addr));
-        char buffer[128];
-        sprintf(buffer,"%s,%d","hdlog",getpid());
-        while (!confirm)
-        {
-            sleep(1);
-            //HD_LOGGER_INFO(TAG,">>>>>> NOTIFY STARTED <<<<<<<\n");
-            write(sockfd, buffer, strlen(buffer));
-        }
-        close(sockfd);
-    // }
-    */
-    
-
-    while (running) {
+    HD_LOGGER_INFO(TAG,"%s Log service heartbeat start ... ... ... <%d>\n",PREFIX,hd_service_interface_running);
+    while (hd_service_interface_running==0) {
+        HD_LOGGER_INFO(TAG,"%s Log service heartbeat:%d <%d> \n",PREFIX, index++,hd_service_interface_running);
+       
         time_t now = time(NULL);
-        HD_LOGGER_INFO(TAG,"%s Log service heartbeat:%d\n",PREFIX, index++);
-        sleep(15);
+  
+        sleep(3);
     }
-    
-    HD_LOGGER_INFO(TAG,"%s Log service stopped !!!\n",PREFIX);
-
+    hd_service_interface_destory();
+    HD_LOGGER_INFO(TAG,"%s Log service heartbeat stop!!!!<%d>\n",PREFIX,hd_service_interface_running);
     return 0;
 }
