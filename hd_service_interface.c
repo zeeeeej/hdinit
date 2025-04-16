@@ -13,19 +13,20 @@
 #include "hd_logger.h"
 #include <execinfo.h>
 
+#define TIMEOUT_SEC 10.0
+
 int hd_service_interface_running = 1; // 1:stop ; 0:start.
 
 static int sleep_internal = 10;
 static char *g_service_name = NULL ;
-#define TIMEOUT_SEC 10
 
-hd_service_interface_on_parent_exit_child my_hd_on_parent_exit_child = NULL;
+static hd_service_interface_on_parent_exit_child my_hd_on_parent_exit_child = NULL;
 
 // 线程控制标志
-volatile int timeout_thread_running = 0;
-pthread_t timeout_thread;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-volatile int heartbeat_received = 0;
+static volatile int timeout_thread_running = 0;
+static pthread_t timeout_thread;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static volatile int heartbeat_received = 0;
 
 
 // 超时处理函数
@@ -40,9 +41,9 @@ static void *heart_beat_timeout_handler(void *arg)
             printf("收到心跳，重置计时器\n");
         }
         pthread_mutex_unlock(&mutex);
-        
-        if (difftime(time(NULL), last_heartbeat) >= TIMEOUT_SEC) {
-            printf("超时！%d秒内未收到心跳信号\n", TIMEOUT_SEC);
+        double diff = difftime(time(NULL), last_heartbeat);
+        if (diff >= TIMEOUT_SEC) {
+            printf("超时！%f秒内未收到心跳信号 diff=%f\n", TIMEOUT_SEC,diff);
             last_heartbeat = time(NULL);  // 重置计时器
             break;
         }
@@ -52,29 +53,6 @@ static void *heart_beat_timeout_handler(void *arg)
     hd_service_interface_running = 1;
     return NULL;
 }
-
-// 启动超时计时器
-static void start_timeout()
-{
-    if (!timeout_thread)
-    {
-        timeout_thread_running = 0;
-        pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
-    }else{
-        timeout_thread_running = 1;
-    }
-}
-
-// // 取消超时计时器
-// static void cancel_timeout()
-// {
-//     if (timeout_thread_running)
-//     {
-//         timeout_thread_running = 0;
-//         pthread_cancel(timeout_thread);
-//         pthread_join(timeout_thread, NULL); // 等待线程结束
-//     }
-// }
 
 static void segv_handler(int sig)
 {
@@ -120,13 +98,13 @@ static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
     // printf(" \n");
     // printf(" -----  SIG            :               %d\n", sig);
     // printf(" -----  Pid            :               %d\n", info->si_pid);
-    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<< PONG [%s]\n",g_service_name);
+    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<< PONG [%s] %ds \n",g_service_name,sleep_internal);
     heartbeat_received = 1;
 
     sleep(sleep_internal);
  
     kill(info->si_pid, sig);
-    start_timeout();
+
 }
 
 static void hd_service_interface_reply_to_parent(
@@ -195,17 +173,14 @@ int hd_service_interface_init(
     sleep_internal = heart_beat;
     // strncpy(g_service_name,service_name,sizeof(g_service_name)-1);
     // g_service_name[sizeof(g_service_name)-1] = '0';
-
-       // 释放旧内存（如果已分配）
-    if (g_service_name) {
-        free(g_service_name);
-    }
     // 动态分配新内存
     g_service_name = strdup(service_name);  // 或 malloc + strcpy
 
+    pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
+ 
+    hd_service_interface_reply_to_parent(socket_fd, service_name, version);
     hd_service_interface_recv_from_parent(callback);
     hd_service_interface_heartbeat();
-    hd_service_interface_reply_to_parent(socket_fd, service_name, version);
     return 0;
 }
 
@@ -215,5 +190,4 @@ void hd_service_interface_destory()
         free(g_service_name);
     }
     hd_service_interface_running = 1;
-    //cancel_timeout();
 }
