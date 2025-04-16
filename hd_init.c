@@ -21,6 +21,7 @@
 #include "hd_http.h"
 #include "hd_utils.h"
 #include "cJSON.h"
+#include "hd_service_interface.h"
 
 #define PREFIX "######"
 
@@ -1506,9 +1507,9 @@ static void *heart_beat_timeout_handler(void *arg)
         }
         pthread_mutex_unlock(&g_map_mutex);
 
-        if (difftime(time(NULL), boom->last_heartbeat) >= TIMEOUT_SEC)
+        if (difftime(time(NULL), boom->last_heartbeat) >= TIMEOUT_SEC_TIMEOUT)
         {
-            printf("超时！%d秒内未收到<%s>心跳信号 %ld\n", TIMEOUT_SEC, boom->service_name, boom->last_heartbeat);
+            printf("超时！%f秒内未收到<%s>心跳信号 %ld\n", TIMEOUT_SEC_TIMEOUT, boom->service_name, boom->last_heartbeat);
             boom->last_heartbeat = time(NULL); // 重置计时器
             break;
         }

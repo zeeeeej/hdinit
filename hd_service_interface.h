@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#define TIMEOUT_SEC_TIMEOUT 10.0
+
 typedef struct
 {
     void (*hd_service_on_init)(void);

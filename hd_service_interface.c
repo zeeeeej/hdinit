@@ -13,7 +13,6 @@
 #include "hd_logger.h"
 #include <execinfo.h>
 
-#define TIMEOUT_SEC 10.0
 
 int hd_service_interface_running = 1; // 1:stop ; 0:start.
 
@@ -42,8 +41,8 @@ static void *heart_beat_timeout_handler(void *arg)
         }
         pthread_mutex_unlock(&mutex);
         double diff = difftime(time(NULL), last_heartbeat);
-        if (diff >= TIMEOUT_SEC) {
-            printf("超时！%f秒内未收到心跳信号 diff=%f\n", TIMEOUT_SEC,diff);
+        if (diff >= TIMEOUT_SEC_TIMEOUT) {
+            printf("超时！%f秒内未收到心跳信号 diff=%f\n", TIMEOUT_SEC_TIMEOUT,diff);
             last_heartbeat = time(NULL);  // 重置计时器
             break;
         }
@@ -157,7 +156,7 @@ static void hd_service_interface_heartbeat()
     struct sigaction sa_usr1;
     sa_usr1.sa_sigaction = sig_heart_beat_handler;
     sigemptyset(&sa_usr1.sa_mask);
-    sigaddset(&sa_usr1.sa_mask, SIGTERM); // 阻塞 SIGTERM
+    //sigaddset(&sa_usr1.sa_mask, SIGTERM); // 阻塞 SIGTERM
     sa_usr1.sa_flags = 0;
 
     sigaction(SIGUSR1, &sa_usr1, NULL);
