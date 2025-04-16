@@ -92,17 +92,31 @@ static void handle_signal(int sig)
     HD_LOGGER_INFO("hd_service_interface", "handle_signal sig=%d    end.\n", sig);
 }
 
+static void * delay_reply(void * arg){
+    sleep(sleep_internal);
+    kill(((siginfo_t*)arg)->si_pid, SIGUSR1);
+    return NULL;
+}
+
 static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
 {
     // printf(" \n");
     // printf(" -----  SIG            :               %d\n", sig);
     // printf(" -----  Pid            :               %d\n", info->si_pid);
-    printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<< PONG [%s] %ds \n",g_service_name,sleep_internal);
+    //printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<< PONG [%s] %ds \n",g_service_name,sleep_internal);
     heartbeat_received = 1;
 
-    sleep(sleep_internal);
- 
-    kill(info->si_pid, sig);
+    const char msg[] = "<<<<<< *PONG*\n";
+
+
+    write(STDOUT_FILENO, msg, sizeof(msg)-1);
+
+    // sleep(sleep_internal);
+    //kill(info->si_pid, sig);
+
+
+    pthread_t t;
+    pthread_create(&t,NULL,delay_reply,info);
 
 }
 

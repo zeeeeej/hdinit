@@ -25,7 +25,8 @@
 
 #define PREFIX "######"
 
-struct Boom
+
+struct  __attribute__((aligned(8))) Boom
 {
     char service_name[20];
     pid_t pid;
@@ -1607,6 +1608,7 @@ static void boom_init(const char *service_name, pid_t pid)
 
     // 发送心跳
     hd_start_heart_beat(pid);
+
 
     printf("<boom>[create_or_update_boom]...\n");
     ret = create_or_update_boom(pid, service_name);
