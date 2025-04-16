@@ -193,7 +193,7 @@ int hd_service_interface_init(
  
     hd_service_interface_reply_to_parent(socket_fd, service_name, version);
     hd_service_interface_recv_from_parent(callback);
-    hd_service_interface_heartbeat();
+    // hd_service_interface_heartbeat();
     return 0;
 }
 

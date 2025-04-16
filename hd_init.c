@@ -1602,17 +1602,17 @@ static int cancel_timeout(const char *service_name)
 
 static void boom_init(const char *service_name, pid_t pid)
 {
-    ping_pong_index++;
-    printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> PING [%s]\n",service_name);
-    int ret;
+    // ping_pong_index++;
+    // printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> PING [%s]\n",service_name);
+    // int ret;
 
-    // 发送心跳
-    hd_start_heart_beat(pid);
+    // // 发送心跳
+    // hd_start_heart_beat(pid);
 
 
-    printf("<boom>[create_or_update_boom]...\n");
-    ret = create_or_update_boom(pid, service_name);
-    printf("<boom>[create_or_update_boom] %d\n", ret);
+    // printf("<boom>[create_or_update_boom]...\n");
+    // ret = create_or_update_boom(pid, service_name);
+    // printf("<boom>[create_or_update_boom] %d\n", ret);
 }
 
 static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
