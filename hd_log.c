@@ -52,7 +52,7 @@ int main(int argc,const char *argv[]) {
         hd_logger_set_level(HD_LOGGER_LEVEL_INFO); 
     }
     HD_LOGGER_INFO(TAG,"%s Log service started (PID: %d)\n",PREFIX, getpid());
-    hd_service_interface_init(argv[1],"hdlog",VERSION_LOG,5,exit_from_parent);
+    hd_service_interface_init(argv[1],"hdlog",VERSION_LOG,10,exit_from_parent);
     int index = 0;
     HD_LOGGER_INFO(TAG,"%s Log service heartbeat start ... ... ... <%d>\n",PREFIX,hd_service_interface_running);
     while (hd_service_interface_running==0) {

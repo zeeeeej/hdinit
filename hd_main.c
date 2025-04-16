@@ -15,7 +15,7 @@
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
-#define VERSION "0.0.3"
+#define VERSION "0.0.4"
 
 volatile sig_atomic_t running = 1;
 
@@ -59,7 +59,7 @@ int main(int argc, const char *argv[])
     }
     HD_LOGGER_INFO(TAG, "%s Main service started (PID: %d)\n", PREFIX, getpid());
 
-    hd_service_interface_init(argv[1], "hdmain", VERSION, 5, exit_from_parent);
+    hd_service_interface_init(argv[1], "hdmain", VERSION, 10, exit_from_parent);
 
     int index = 0;
 

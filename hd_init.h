@@ -4,7 +4,7 @@
 #include "hd_service.h"
 #include "hd_context.h"
 
-#define VERSION "1.0.0"
+#define VERSION "1.0.0.1"
 
 #define SPIT ""
 #define TAG "hdinit"

@@ -10,7 +10,7 @@ LIBS = -lcurl -lssl -lcrypto -lpthread
 SRC_DIR = ..
 SRCS = $(SRC_DIR)/hd_init.c $(SRC_DIR)/hd_logger.c $(SRC_DIR)/hd_utils.c \
        $(SRC_DIR)/hd_service.c $(SRC_DIR)/hd_http.c $(SRC_DIR)/cJSON.c \
-       ${SRC_DIR}/hd_ipc.c		
+       ${SRC_DIR}/hd_ipc.c ${SRC_DIR}/hd_service_interface.c		
 
 # 目标文件目录和文件
 BUILD_DIR = build

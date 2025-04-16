@@ -26,14 +26,14 @@
 
 struct Boom
 {
+    pthread_t timeout_thread;
+    time_t last_heartbeat;
+    pthread_mutex_t mutex;
     char service_name[20];
     pid_t pid;
     volatile int timeout_thread_running;
-    pthread_t timeout_thread;
     int heart_beat_boooom;
     int index;
-    pthread_mutex_t mutex;
-    time_t last_heartbeat;
 };
 
 static pthread_mutex_t g_map_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -142,13 +142,27 @@ static int op_start_service_internal(HDService *service)
 
     // 开启socket，子进程通过这个socket传递自己的数据，比如已启动。
     int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    HD_LOGGER_DEBUG(TAG, "op_start_service_internal sock_fd = %d \n",sock_fd);
+    char sun_path_buffer [128] = {0};
+    snprintf(sun_path_buffer,128,"%s-%s",HD_IPC_SOCKET_PATH_FOR_CHILD,service->name)	;
     struct sockaddr_un addr = {
         .sun_family = AF_UNIX,
-        .sun_path = HD_IPC_SOCKET_PATH_FOR_CHILD};
+    	//    .sun_path = sun_path_buffer
+    };
+    
+    strncpy(addr.sun_path, sun_path_buffer, sizeof(addr.sun_path) - 1);
+    addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
 
+    HD_LOGGER_INFO(TAG, "op_start_service_internal---------%s------- sun_path=%s \n",sun_path_buffer,addr.sun_path);
     unlink(addr.sun_path); // 确保 socket 文件不存在
-    bind(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
-    listen(sock_fd, 5);
+    int ret = bind(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
+    HD_LOGGER_INFO(TAG, "op_start_service_internal bind()=%d \n",ret);
+    if(ret==-1){
+    	close(sock_fd);
+    }
+    ret = listen(sock_fd, 5);
+    HD_LOGGER_INFO(TAG, "op_start_service_internal listen=%d\n",ret);
     // 开启socket，子进程通过这个socket传递自己的数据，比如已启动。 // end
 
     pid_t pid = fork();
@@ -167,10 +181,10 @@ static int op_start_service_internal(HDService *service)
         int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
         connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
         // 执行新程序，并传递 socket 文件描述符
-        char fd_str[10];
+        char *fd_str= (char *)malloc(1024);
         snprintf(fd_str, sizeof(fd_str), "%d", client_fd);
 
-        HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s]Child:[%d/%d] do execl... \n", start_name, start_path, getppid(), getpid());
+        HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s]Child:[%d/%d] do execl... socket_fd:%s \n", start_name, start_path, getppid(), getpid(),fd_str);
         int ret = execl(service->path, service->name, fd_str, NULL); // 成功时无返回值，失败返回 -1
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s]Child but Child execl() fail : %d! \n", start_name, start_path, ret);
         // exit(EXIT_FAILURE);
@@ -204,12 +218,13 @@ static int op_start_service_internal(HDService *service)
         // 接受子进程返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号>
         int client_fd = accept(sock_fd, NULL, NULL);
         char status[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE] = {0};
+        printf("aaaaaaaaaaaaaaaaaaaaaaaaaa:%d\n", client_fd);
         int len = read(client_fd, status, sizeof(status));
-        printf("-------------------a:%d\n", len);
+        printf("aaaaaaaaaaaaaaaaaaaaaaaaaa:%d\n", len);
         // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
         // status[len] = '\0';
         // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
-        printf("-------------------z\n");
+        printf("zzzzzzzzzzzzzzzzzzzzzzzzzz:%s\n",status);
         if (strlen(status) != 0)
         {
             char s_name[128];
@@ -253,7 +268,9 @@ static int op_start_service_internal(HDService *service)
         {
             HD_LOGGER_ERROR(TAG, "op_start_service_internal empty status !\n");
         }
-        close(client_fd);
+     	sleep(1);
+     	close(client_fd);
+	sleep(1);
         close(sock_fd);
         unlink(addr.sun_path); // 清理 socket 文件
         /* 接受子进程的状态数据 end */
@@ -1601,7 +1618,7 @@ static int cancel_timeout(const char *service_name)
 static void boom_init(const char *service_name, pid_t pid)
 {
     ping_pong_index++;
-    printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> PING [%s]\n",service_name);
+    printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> *PING* [%s]\n",service_name);
     int ret;
 
     // 发送心跳
@@ -1610,13 +1627,17 @@ static void boom_init(const char *service_name, pid_t pid)
     printf("<boom>[create_or_update_boom]...\n");
     ret = create_or_update_boom(pid, service_name);
     printf("<boom>[create_or_update_boom] %d\n", ret);
+    
 }
 
 static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
 {
+ 
+    printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
     HDService *service = hd_service_array_find_by_pid(&g_service_array, info->si_pid);
     if (service == NULL)
     {
+   	printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx %d service is null.\n",info->si_pid);
         return;
     }
     boom_init(service->name, info->si_pid);
@@ -1638,14 +1659,14 @@ int main(int argc, char const *argv[])
 
     map_init(&g_map);
 
-    struct sigaction sa_usr1;
+   /* struct sigaction sa_usr1;
     sa_usr1.sa_sigaction = sig_heart_beat_handler;
     sigemptyset(&sa_usr1.sa_mask);
     sigaddset(&sa_usr1.sa_mask, SIGTERM); // 阻塞 SIGTERM
     sa_usr1.sa_flags = 0;
 
-    sigaction(SIGUSR1, &sa_usr1, NULL);
-
+   sigaction(SIGUSR1, &sa_usr1, NULL);
+	*/
     if (HD_DEBUG)
     {
         hd_logger_set_level(HD_LOGGER_LEVEL_DEBUG);

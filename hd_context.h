@@ -6,7 +6,7 @@
  * 0    imx6ull
  * 1    m1
  */
-#define HD_CONTEXT 1
+#define HD_CONTEXT 0
 
 /**
  * 0    off

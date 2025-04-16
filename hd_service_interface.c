@@ -13,27 +13,25 @@
 #include "hd_logger.h"
 #include <execinfo.h>
 
-int hd_service_interface_running = 1; // 1:stop ; 0:start.
-
-static int sleep_internal = 10;
-static char *g_service_name = NULL ;
 #define TIMEOUT_SEC 10
 
-hd_service_interface_on_parent_exit_child my_hd_on_parent_exit_child = NULL;
-
-// 线程控制标志
-volatile int timeout_thread_running = 0;
-pthread_t timeout_thread;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-volatile int heartbeat_received = 0;
-
+int hd_service_interface_running = 1; // 1:stop ; 0:start.
+static char *g_service_name = NULL ;
+static hd_service_interface_on_parent_exit_child my_hd_on_parent_exit_child = NULL;
+static volatile int timeout_thread_running = 0;
+static pthread_t timeout_thread;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static volatile int heartbeat_received = 0;
 
 // 超时处理函数
 static void *heart_beat_timeout_handler(void *arg)
 {
+ 	printf("heart_beat_timeout_handler ...\n");
     time_t last_heartbeat = time(NULL);
     while (1) {
-        pthread_mutex_lock(&mutex);
+
+    	printf("checking ... ... %d %ld \n",heartbeat_received,last_heartbeat);
+ /*       pthread_mutex_lock(&mutex);
         if (heartbeat_received) {
             last_heartbeat = time(NULL);
             heartbeat_received = 0;
@@ -44,24 +42,28 @@ static void *heart_beat_timeout_handler(void *arg)
         if (difftime(time(NULL), last_heartbeat) >= TIMEOUT_SEC) {
             printf("超时！%d秒内未收到心跳信号\n", TIMEOUT_SEC);
             last_heartbeat = time(NULL);  // 重置计时器
+   	    hd_service_interface_running = 1;
             break;
         }
-        
+     */   
         sleep(1);  // 每秒检查一次
     }
-    hd_service_interface_running = 1;
+    timeout_thread_running = 0;
     return NULL;
 }
 
 // 启动超时计时器
 static void start_timeout()
 {
-    if (!timeout_thread)
+    if (timeout_thread_running==0)
     {
-        timeout_thread_running = 0;
+	    
+    	printf("timeout thread creatintg ...\n");
+        timeout_thread_running = 1;
         pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
     }else{
-        timeout_thread_running = 1;
+    	printf("timeout thread is already create!\n");
+	    //timeout_thread_running = 1;
     }
 }
 
@@ -121,12 +123,18 @@ static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
     // printf(" -----  SIG            :               %d\n", sig);
     // printf(" -----  Pid            :               %d\n", info->si_pid);
     printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<< PONG [%s]\n",g_service_name);
+    
+    // reset
+    pthread_mutex_lock(&mutex); 
     heartbeat_received = 1;
-
-    sleep(sleep_internal);
- 
+    pthread_mutex_unlock(&mutex);
+    
+    sleep(5);
+    
     kill(info->si_pid, sig);
-    start_timeout();
+    
+    //start_timeout();
+    
 }
 
 static void hd_service_interface_reply_to_parent(
@@ -148,12 +156,16 @@ static void hd_service_interface_reply_to_parent(
     // sprintf(buffer,"%s,%d,%s","hdlog",getpid(),VERSION);
     const int sid = getpid();
 
+    	HD_LOGGER_ERROR("hd_service_interface","===>1\n");
     hd_child_info_encode(buffer, service_name, sid, version);
 
-    write(sock_fd, buffer, strlen(buffer));
+    	HD_LOGGER_ERROR("hd_service_interface","====>2\n");
+   ssize_t size  =  write(sock_fd, buffer, strlen(buffer));
+	
+    	HD_LOGGER_ERROR("hd_service_interface","====>3%zd \n",size);
+    // close(sock_fd);
 
-    close(sock_fd);
-
+    	HD_LOGGER_ERROR("hd_service_interface","====>4\n");
     /* 接受父进程的socked fd 进行通信  end*/
 
     hd_service_interface_running = 0;
@@ -171,7 +183,7 @@ static void hd_service_interface_recv_from_parent(hd_service_interface_on_parent
     sigaction(SIGUSR2, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    signal(SIGSEGV, segv_handler);
+    //signal(SIGSEGV, segv_handler);
 }
 
 static void hd_service_interface_heartbeat()
@@ -185,6 +197,12 @@ static void hd_service_interface_heartbeat()
     sigaction(SIGUSR1, &sa_usr1, NULL);
 }
 
+void handle_sigbus(int sig){
+
+    	HD_LOGGER_ERROR("hd_service_interface","SIGBUS:MEMORY access error!");
+	exit(EXIT_FAILURE);
+}
+
 int hd_service_interface_init(
     const char *socket_fd,
     const char *service_name,
@@ -192,28 +210,50 @@ int hd_service_interface_init(
     int heart_beat,
     hd_service_interface_on_parent_exit_child callback)
 {
-    sleep_internal = heart_beat;
+	
+    signal(SIGPIPE,SIG_IGN);
+    signal(SIGBUS,handle_sigbus);
+    //sleep_internal = heart_beat;
     // strncpy(g_service_name,service_name,sizeof(g_service_name)-1);
     // g_service_name[sizeof(g_service_name)-1] = '0';
 
-       // 释放旧内存（如果已分配）
-    if (g_service_name) {
-        free(g_service_name);
-    }
     // 动态分配新内存
     g_service_name = strdup(service_name);  // 或 malloc + strcpy
 
-    hd_service_interface_recv_from_parent(callback);
-    hd_service_interface_heartbeat();
+    if(!g_service_name){
+    	HD_LOGGER_ERROR("hd_service_interface","strdup error!");
+	exit(EXIT_FAILURE);
+    }
+
+    	HD_LOGGER_ERROR("hd_service_interface","11111111111111111111111\n");
+    pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
+    
+    	HD_LOGGER_ERROR("hd_service_interface","22222222222222222222222222\n");
     hd_service_interface_reply_to_parent(socket_fd, service_name, version);
+    	HD_LOGGER_ERROR("hd_service_interface","33333333333333333333333333\n");
+   // hd_service_interface_recv_from_parent(callback);
+   // hd_service_interface_heartbeat();
+   
     return 0;
 }
 
 void hd_service_interface_destory()
-{ 
+{
+
+  // 通知线程退出
+    hd_service_interface_running = 1;
+    
+    // 等待线程结束
+    if (timeout_thread) {
+        pthread_join(timeout_thread, NULL);
+        timeout_thread = 0;
+    }
+    
+    // 释放资源
     if (g_service_name) {
         free(g_service_name);
+        g_service_name = NULL;
     }
-    hd_service_interface_running = 1;
-    //cancel_timeout();
+
+    	HD_LOGGER_ERROR("hd_service_interface","hd_service_interface_destory");
 }
