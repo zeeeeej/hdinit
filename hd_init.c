@@ -1641,13 +1641,13 @@ int main(int argc, char const *argv[])
 
     map_init(&g_map);
 
-    struct sigaction sa_usr1;
-    sa_usr1.sa_sigaction = sig_heart_beat_handler;
-    sigemptyset(&sa_usr1.sa_mask);
-    sigaddset(&sa_usr1.sa_mask, SIGTERM); // 阻塞 SIGTERM
-    sa_usr1.sa_flags = 0;
+    // struct sigaction sa_usr1;
+    // sa_usr1.sa_sigaction = sig_heart_beat_handler;
+    // sigemptyset(&sa_usr1.sa_mask);
+    // sigaddset(&sa_usr1.sa_mask, SIGTERM); // 阻塞 SIGTERM
+    // sa_usr1.sa_flags = 0;
 
-    sigaction(SIGUSR1, &sa_usr1, NULL);
+    // sigaction(SIGUSR1, &sa_usr1, NULL);
 
     if (HD_DEBUG)
     {

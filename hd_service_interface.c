@@ -189,7 +189,7 @@ int hd_service_interface_init(
     // 动态分配新内存
     g_service_name = strdup(service_name);  // 或 malloc + strcpy
 
-    pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
+    //pthread_create(&timeout_thread, NULL, heart_beat_timeout_handler, NULL);
  
     hd_service_interface_reply_to_parent(socket_fd, service_name, version);
     hd_service_interface_recv_from_parent(callback);
