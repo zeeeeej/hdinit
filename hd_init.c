@@ -21,9 +21,12 @@
 #include "hd_http.h"
 #include "hd_utils.h"
 #include "cJSON.h"
-#include "hd_service_interface.h"
+#include "hd_ipc_init.h"
+
 
 #define PREFIX "######"
+
+
 
 
 struct  __attribute__((aligned(8))) Boom
@@ -38,8 +41,8 @@ struct  __attribute__((aligned(8))) Boom
     time_t last_heartbeat;
 };
 
-static pthread_mutex_t g_map_mutex = PTHREAD_MUTEX_INITIALIZER;
-static HashMap g_map;
+//static pthread_mutex_t g_map_mutex = PTHREAD_MUTEX_INITIALIZER;
+//static HashMap g_map;
 
 static void opt_reboot_internal();
 static int op_stop_service_internal(HDService *service);
@@ -50,7 +53,7 @@ static void progress_callback(double progress);
 static int write_to_client(int client_fd, const char *buffer, size_t buffer_size);
 static int hd_ipc_continu_update(int client_fd, HDService *service, const hd_http_check_resp *resp);
 static void monitor_services();
-static void boom_init(const char *service_name, pid_t pid);
+// static void boom_init(const char *service_name, pid_t pid);
 
 
 static void hd_start_heart_beat(int child_pid)
@@ -137,11 +140,25 @@ static int op_start_service_internal(HDService *service)
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s] can not find!\n", service->name, service->path);
         return -1;
     }
+
+    if (service->status == HD_SERVICE_STATUS_STARTED)
+    {
+        HD_LOGGER_DEBUG(TAG, "op_start_service_internal[%s:%s] already started!\n", service->name, service->path);
+       return -1;
+    }
+
+    if (service->status == HD_SERVICE_STATUS_STARTTING)
+    {
+        HD_LOGGER_WARNING(TAG, "op_start_service_internal[%s:%s] starting ...\n", service->name, service->path);
+       return -1;
+    }
+    
     char *start_name = service->name;
     char *start_path = service->path;
-    HD_LOGGER_INFO(TAG, "op_start_service_internal----------------> \n");
+    HD_LOGGER_INFO(TAG, "op_start_service_internal------fork()----------> \n");
     HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s] p->%p fork ...\n", start_name, start_path, service);
 
+    /* 废弃 转为ipc通信
     // 开启socket，子进程通过这个socket传递自己的数据，比如已启动。
     int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un addr = {
@@ -152,6 +169,7 @@ static int op_start_service_internal(HDService *service)
     bind(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
     listen(sock_fd, 5);
     // 开启socket，子进程通过这个socket传递自己的数据，比如已启动。 // end
+    */
 
     pid_t pid = fork();
     if (pid < 0)
@@ -165,15 +183,16 @@ static int op_start_service_internal(HDService *service)
     {
         // 子进程分支
         _D_("_debug_ op_start_service_internal child start.\n");
-        close(sock_fd); // 子进程不需要监听
-        int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
-        // 执行新程序，并传递 socket 文件描述符
-        char fd_str[10];
-        snprintf(fd_str, sizeof(fd_str), "%d", client_fd);
+
+        // close(sock_fd); // 子进程不需要监听
+        // int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        // connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
+        // // 执行新程序，并传递 socket 文件描述符
+        // char fd_str[10];
+        // snprintf(fd_str, sizeof(fd_str), "%d", client_fd);
 
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s]Child:[%d/%d] do execl... \n", start_name, start_path, getppid(), getpid());
-        int ret = execl(service->path, service->name, fd_str, NULL); // 成功时无返回值，失败返回 -1
+        int ret = execl(service->path, service->name, NULL, NULL); // 成功时无返回值，失败返回 -1
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s]Child but Child execl() fail : %d! \n", start_name, start_path, ret);
         // exit(EXIT_FAILURE);
         _exit(ERROR_CHILD_START_FAIL); // 通知Parent
@@ -181,13 +200,13 @@ static int op_start_service_internal(HDService *service)
     }
     else
     {
-
+        // 父进程分支
         if (!service_manager_running)
         {
             return -1;
         }
         _D_("_debug_ op_start_service_internal parent start.\n");
-        // 父进程分支
+     
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s] Parent:[%d/%d]! \n", start_name, start_path, getpid(), pid);
         service->status = HD_SERVICE_STATUS_STARTTING;
         service->pid = pid;
@@ -202,63 +221,75 @@ static int op_start_service_internal(HDService *service)
         args->service = service;
         pthread_create(&wait_child_exit_thread_t, NULL, wait_child_exit_thread, args);
 
-        /* 接受子进程的状态数据 */
-        // 接受子进程返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号>
-        int client_fd = accept(sock_fd, NULL, NULL);
-        char status[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE] = {0};
-        int len = read(client_fd, status, sizeof(status));
-        printf("-------------------a:%d\n", len);
-        // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
-        // status[len] = '\0';
-        // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
-        printf("-------------------z\n");
-        if (strlen(status) != 0)
-        {
-            char s_name[128];
-            char s_version[128];
-            int s_id;
-            // hd_child_info_decode(status,s_name,&s_id,s_version);
-            sscanf(status, "%127[^,],%d,%127[^,]", s_name, &s_id, s_version);
-            HD_LOGGER_ERROR(TAG, "op_start_service_internal Parent received: <%s> <%s> <%d>\n", status, s_name, s_id);
-            HDService *service = hd_service_array_find_by_name(&g_service_array, s_name);
-            if (service == NULL)
-            {
-                HD_LOGGER_ERROR(TAG, "op_start_service_internal service not found: %s\n", s_name);
-            }
-            else
-            {
-                if (service->pid == s_id)
-                {
-                    stpncpy(service->version, s_version, strlen(s_version));
-                    service->status = HD_SERVICE_STATUS_STARTED;
-                    service->update = 0;
-                    HD_LOGGER_ERROR(TAG, "op_start_service_internal %s SERVICE-STARTED!!! %s %s\n", s_name, PREFIX, PREFIX);
-                    hd_service_array_print(&g_service_array);
+        // 废弃 转为ipc通信
+        // /* 接受子进程的状态数据 */
+        // // 接受子进程返回给父进程表明启动成功 : <进程名称>,<进程id>,<程序版本号>
+        // int client_fd = accept(sock_fd, NULL, NULL);
+        // char status[HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE] = {0};
+        // int len = read(client_fd, status, sizeof(status));
+        // if (len>0)
+        // {
+            
+        // }else{
+        //     HD_PRINT_ERROR("hd_init.c","op_start_service_internal","read fail %d \n",len);
+        //     return -1;
+        // }
+        
+        // printf("-------------------a:%d\n", len);
+        // // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
+        // // status[len] = '\0';
+        // // hd_print_buffer(status,HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE);
+        // printf("-------------------z\n");
+        // if (strlen(status) != 0)
+        // {
+        //     char s_name[128];
+        //     char s_version[128];
+        //     int s_id;
+        //     // hd_child_info_decode(status,s_name,&s_id,s_version);
+        //     sscanf(status, "%127[^,],%d,%127[^,]", s_name, &s_id, s_version);
+        //     HD_LOGGER_ERROR(TAG, "op_start_service_internal Parent received: <%s> <%s> <%d>\n", status, s_name, s_id);
+        //     HDService *service = hd_service_array_find_by_name(&g_service_array, s_name);
+        //     if (service == NULL)
+        //     {
+        //         HD_LOGGER_ERROR(TAG, "op_start_service_internal service not found: %s\n", s_name);
+        //     }
+        //     else
+        //     {
+        //         if (service->pid == s_id)
+        //         {
+        //             stpncpy(service->version, s_version, strlen(s_version));
+        //             service->status = HD_SERVICE_STATUS_STARTED;
+        //             service->update = 0;
+        //             HD_LOGGER_ERROR(TAG, "op_start_service_internal %s SERVICE-STARTED!!! %s %s\n", s_name, PREFIX, PREFIX);
+        //             hd_service_array_print(&g_service_array);
 
-                    // if (strcmp("hdlog", service->name) == 0)
-                    //{
-                    boom_init(service->name, s_id);
-                    //}
+        //             // if (strcmp("hdlog", service->name) == 0)
+        //             //{
+        //             //boom_init(service->name, s_id);
+        //             //}
 
-                    if (strcmp(HD_INIT_SERVICE_MAIN, service->name) == 0)
-                    {
-                        start_main_service_count = 0;
-                    }
-                }
-                else
-                {
-                    HD_LOGGER_ERROR(TAG, "op_start_service_internal pid not same : %d == %d = %d\n", service->pid, s_id, service->pid == s_id);
-                }
-            }
-        }
-        else
-        {
-            HD_LOGGER_ERROR(TAG, "op_start_service_internal empty status !\n");
-        }
-        close(client_fd);
-        close(sock_fd);
-        unlink(addr.sun_path); // 清理 socket 文件
-        /* 接受子进程的状态数据 end */
+        //             if (strcmp(HD_INIT_SERVICE_MAIN, service->name) == 0)
+        //             {
+        //                 start_main_service_count = 0;
+        //             }
+        //         }
+        //         else
+        //         {
+        //             HD_LOGGER_ERROR(TAG, "op_start_service_internal pid not same : %d == %d = %d\n", service->pid, s_id, service->pid == s_id);
+        //         }
+        //     }
+        // }
+        // else
+        // {
+        //     HD_LOGGER_ERROR(TAG, "op_start_service_internal empty status !\n");
+        // }
+        // close(client_fd);
+        // close(sock_fd);
+        // unlink(addr.sun_path); // 清理 socket 文件
+        // /* 接受子进程的状态数据 end */
+
+
+
         _D_("_debug_ op_start_service_internal parent end.\n");
         return 0;
     }
@@ -1020,6 +1051,8 @@ void *ipc_server_thread(void *arg)
             {
                 handle_client_command(client_fd, argc, argv);
             }
+        }else{
+            HD_PRINT_ERROR("hd_init.c","ipc_server_thread","read fail %d \n",n);
         }
         int ret = close(client_fd);
         HD_LOGGER_ERROR(TAG, "ipc_server_thread socket:[%d] close_client[%d] ret = %d \n", server_fd, client_fd, ret);
@@ -1482,152 +1515,210 @@ struct Boom *create_boom(const char *name, int pid, int index)
     return boom;
 }
 
-#define TIMEOUT_SEC 10
-// 超时处理函数
-static void *heart_beat_timeout_handler(void *arg)
-{
+// #define TIMEOUT_SEC 10
+// // 超时处理函数
+// static void *heart_beat_timeout_handler(void *arg)
+// {
 
-    pthread_mutex_lock(&g_map_mutex);
-    // 引爆炸弹
-    struct Boom *boom = ((struct Boom *)(arg));
-    if (boom == NULL)
-    {
-        printf("<boom>[heart_beat_timeout_handler]boom is null \n");
-        return NULL;
-    }
-    pthread_mutex_unlock(&g_map_mutex);
+//     pthread_mutex_lock(&g_map_mutex);
+//     // 引爆炸弹
+//     struct Boom *boom = ((struct Boom *)(arg));
+//     if (boom == NULL)
+//     {
+//         printf("<boom>[heart_beat_timeout_handler]boom is null \n");
+//         return NULL;
+//     }
+//     pthread_mutex_unlock(&g_map_mutex);
 
-    while (boom->timeout_thread_running)
-    {
-        pthread_mutex_lock(&g_map_mutex);
-        if (boom->heart_beat_boooom == 0)
-        {
-            boom->last_heartbeat = time(NULL);
-            boom->heart_beat_boooom = 1;
-            printf("收到<%s>心跳，重置计时器\n", boom->service_name);
-        }
-        pthread_mutex_unlock(&g_map_mutex);
+//     while (boom->timeout_thread_running)
+//     {
+//         pthread_mutex_lock(&g_map_mutex);
+//         if (boom->heart_beat_boooom == 0)
+//         {
+//             boom->last_heartbeat = time(NULL);
+//             boom->heart_beat_boooom = 1;
+//             printf("收到<%s>心跳，重置计时器\n", boom->service_name);
+//         }
+//         pthread_mutex_unlock(&g_map_mutex);
 
-        if (difftime(time(NULL), boom->last_heartbeat) >= TIMEOUT_SEC_TIMEOUT)
-        {
-            printf("超时！%f秒内未收到<%s>心跳信号 %ld\n", TIMEOUT_SEC_TIMEOUT, boom->service_name, boom->last_heartbeat);
-            boom->last_heartbeat = time(NULL); // 重置计时器
-            break;
-        }
+//         if (difftime(time(NULL), boom->last_heartbeat) >= TIMEOUT_SEC_TIMEOUT)
+//         {
+//             printf("超时！%f秒内未收到<%s>心跳信号 %ld\n", TIMEOUT_SEC_TIMEOUT, boom->service_name, boom->last_heartbeat);
+//             boom->last_heartbeat = time(NULL); // 重置计时器
+//             break;
+//         }
 
-        sleep(3); // 秒检查一次
-    }
+//         sleep(3); // 秒检查一次
+//     }
 
-    pthread_mutex_lock(&g_map_mutex);
-    // 从map中移除
-    map_remove(&g_map, boom->service_name);
-    pthread_mutex_unlock(&g_map_mutex);
+//     pthread_mutex_lock(&g_map_mutex);
+//     // 从map中移除
+//     map_remove(&g_map, boom->service_name);
+//     pthread_mutex_unlock(&g_map_mutex);
+//     return NULL;
+// }
+
+// static int create_or_update_boom(pid_t s_pid, const char *service_name)
+// {
+//     pthread_mutex_lock(&g_map_mutex);
+//     MapValue value;
+//     // 存在设置heart_beat_boooom=1。
+//     if (map_get(&g_map, service_name, &value))
+//     {
+
+//         if (value.type == MAP_POINTER)
+//         {
+//             struct Boom *boom = (struct Boom *)(value.data.pointer_val);
+//             // pthread_mutex_lock(&(boom->mutex));
+//             boom->heart_beat_boooom = 0;
+//             // pthread_mutex_unlock(&(boom->mutex));
+//             pthread_mutex_unlock(&g_map_mutex);
+//         }
+
+//         pthread_mutex_unlock(&g_map_mutex);
+//         return 1;
+//     }
+
+//     else
+
+//     // 不存在1.创建；2.设置heart_beat_boooom=1。
+//     {
+//         struct Boom *boom = create_boom(service_name, s_pid, ping_pong_index);
+//         pthread_create(&(boom->timeout_thread), NULL, heart_beat_timeout_handler, boom);
+//         map_put(&g_map, service_name, map_make_pointer(boom));
+//         map_pretty_print(&g_map);
+
+//         printf("<boom>[heart_beat_timeout_handler]boom.ptr     = %p \n", boom);
+//         printf("<boom>[heart_beat_timeout_handler]boom.service = %s \n", boom->service_name);
+//         printf("<boom>[heart_beat_timeout_handler]boom.pid     = %d \n", boom->pid);
+//         printf("<boom>[timeout_handler]boom.running = %d \n", boom->timeout_thread_running);
+//         printf("<boom>[timeout_handler]boom.booom   = %d \n", boom->heart_beat_boooom);
+//         printf("<boom>[timeout_handler]boom.index   = %d \n", boom->index);
+
+//         pthread_mutex_unlock(&g_map_mutex);
+//         return 2;
+//     }
+// }
+
+// // 取消超时计时器
+// static int cancel_timeout(const char *service_name)
+// {
+//     MapValue value;
+//     // 存在则停止掉线程 从map中删除
+//     if (map_get(&g_map, service_name, &value))
+//     {
+//         if (value.type == MAP_POINTER)
+//         {
+//             struct Boom *boom = (struct Boom *)(value.data.pointer_val);
+//             if (boom->timeout_thread_running)
+//             {
+//                 // printf("<boom>[cancel_timeout] is running!\n");
+//                 boom->timeout_thread_running = 0;
+//                 boom->heart_beat_boooom = 0;
+//                 pthread_cancel((boom->timeout_thread));
+//                 // printf("<boom>[cancel_timeout] wait exit...\n");
+//                 pthread_join((boom->timeout_thread), NULL); // 等待线程结束
+//                 // printf("<boom>[cancel_timeout] exit!\n");
+//             }
+//             // printf("<boom>[cancel_timeout] remove!\n");
+//             // map_remove(&g_map, service_name);
+//             return 0;
+//         }
+//         return -2;
+//     }
+//     else
+//     {
+//         // printf("<boom>[cancel_timeout] not exist!!!\n");
+//         return -1;
+//     }
+// }
+
+// static void boom_init(const char *service_name, pid_t pid)
+// {
+//     // ping_pong_index++;
+//     // printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> PING [%s]\n",service_name);
+//     // int ret;
+
+//     // // 发送心跳
+//     // hd_start_heart_beat(pid);
+
+
+//     // printf("<boom>[create_or_update_boom]...\n");
+//     // ret = create_or_update_boom(pid, service_name);
+//     // printf("<boom>[create_or_update_boom] %d\n", ret);
+// }
+
+// static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
+// {
+//     HDService *service = hd_service_array_find_by_pid(&g_service_array, info->si_pid);
+//     if (service == NULL)
+//     {
+//         return;
+//     }
+//     boom_init(service->name, info->si_pid);
+// }
+
+
+static cJSON*  ipc_resp_cmd_ipc_core_heartbeat_pong(const char * service_name,int index) {
+    return  ipc_request_core_heartbeat_ping(service_name,index);
+}
+
+static cJSON*  ipc_resp_cmd_ipc_core_service_started(const char * service_name,int pid,const char * version) {
     return NULL;
 }
 
-static int create_or_update_boom(pid_t s_pid, const char *service_name)
-{
-    pthread_mutex_lock(&g_map_mutex);
-    MapValue value;
-    // 存在设置heart_beat_boooom=1。
-    if (map_get(&g_map, service_name, &value))
+static cJSON*  ipc_resp_cmd_ipc_shell_confirm_upgrade_resp(const char * service_name) {
+    return NULL;
+}
+
+static void ipc_init_on_heartbeat_lost_internal(const char * name,int index,time_t time){
+    HDService *service =  hd_service_array_find_by_name(&g_service_array,name);
+    if (service==NULL)
     {
-
-        if (value.type == MAP_POINTER)
-        {
-            struct Boom *boom = (struct Boom *)(value.data.pointer_val);
-            // pthread_mutex_lock(&(boom->mutex));
-            boom->heart_beat_boooom = 0;
-            // pthread_mutex_unlock(&(boom->mutex));
-            pthread_mutex_unlock(&g_map_mutex);
-        }
-
-        pthread_mutex_unlock(&g_map_mutex);
-        return 1;
+       return;
     }
-
-    else
-
-    // 不存在1.创建；2.设置heart_beat_boooom=1。
+    
+    if (service->status != HD_SERVICE_STATUS_STARTED)
     {
-        struct Boom *boom = create_boom(service_name, s_pid, ping_pong_index);
-        pthread_create(&(boom->timeout_thread), NULL, heart_beat_timeout_handler, boom);
-        map_put(&g_map, service_name, map_make_pointer(boom));
-        map_pretty_print(&g_map);
-
-        printf("<boom>[heart_beat_timeout_handler]boom.ptr     = %p \n", boom);
-        printf("<boom>[heart_beat_timeout_handler]boom.service = %s \n", boom->service_name);
-        printf("<boom>[heart_beat_timeout_handler]boom.pid     = %d \n", boom->pid);
-        printf("<boom>[timeout_handler]boom.running = %d \n", boom->timeout_thread_running);
-        printf("<boom>[timeout_handler]boom.booom   = %d \n", boom->heart_beat_boooom);
-        printf("<boom>[timeout_handler]boom.index   = %d \n", boom->index);
-
-        pthread_mutex_unlock(&g_map_mutex);
-        return 2;
+        op_stop_service_internal(service);
     }
 }
 
-// 取消超时计时器
-static int cancel_timeout(const char *service_name)
-{
-    MapValue value;
-    // 存在则停止掉线程 从map中删除
-    if (map_get(&g_map, service_name, &value))
+
+static  void ipc_init_on_connected_internal(const char * service_name,int service_pid,const char * service_version){
+    HDService *service =  hd_service_array_find_by_name(&g_service_array,service_name);
+    if (service==NULL)
     {
-        if (value.type == MAP_POINTER)
-        {
-            struct Boom *boom = (struct Boom *)(value.data.pointer_val);
-            if (boom->timeout_thread_running)
-            {
-                // printf("<boom>[cancel_timeout] is running!\n");
-                boom->timeout_thread_running = 0;
-                boom->heart_beat_boooom = 0;
-                pthread_cancel((boom->timeout_thread));
-                // printf("<boom>[cancel_timeout] wait exit...\n");
-                pthread_join((boom->timeout_thread), NULL); // 等待线程结束
-                // printf("<boom>[cancel_timeout] exit!\n");
-            }
-            // printf("<boom>[cancel_timeout] remove!\n");
-            // map_remove(&g_map, service_name);
-            return 0;
-        }
-        return -2;
+        HD_LOGGER_WARNING(TAG,"[ipc_init_on_connected_internal]service not fond!");
+        return ;
     }
-    else
+    
+    stpncpy(service->version, service_version, strlen(service_version));
+    service->status = HD_SERVICE_STATUS_STARTED;
+    service->update = 0;
+    HD_LOGGER_ERROR(TAG, "[ipc_init_on_connected_internal] %s SERVICE-STARTED!!! %s %s\n", service_name, PREFIX, PREFIX);
+    hd_service_array_print(&g_service_array);
+    if (strcmp(HD_INIT_SERVICE_MAIN, service->name) == 0)
     {
-        // printf("<boom>[cancel_timeout] not exist!!!\n");
-        return -1;
+        start_main_service_count = 0;
     }
 }
 
-static void boom_init(const char *service_name, pid_t pid)
-{
-    // ping_pong_index++;
-    // printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>> PING [%s]\n",service_name);
-    // int ret;
-
-    // // 发送心跳
-    // hd_start_heart_beat(pid);
-
-
-    // printf("<boom>[create_or_update_boom]...\n");
-    // ret = create_or_update_boom(pid, service_name);
-    // printf("<boom>[create_or_update_boom] %d\n", ret);
-}
-
-static void sig_heart_beat_handler(int sig, siginfo_t *info, void *ucontext)
-{
-    HDService *service = hd_service_array_find_by_pid(&g_service_array, info->si_pid);
-    if (service == NULL)
-    {
-        return;
-    }
-    boom_init(service->name, info->si_pid);
+static void * hd_ipc_init_thread_function(void *arg){
+    ipc_init_initialize(
+        ipc_init_on_connected_internal,
+        ipc_init_on_heartbeat_lost_internal,
+        ipc_resp_cmd_ipc_core_heartbeat_pong,
+        ipc_resp_cmd_ipc_core_service_started,
+        ipc_resp_cmd_ipc_shell_confirm_upgrade_resp
+    );
+    return NULL;
 }
 
 /**
- *   gcc -o ./.service/hd_init hd_init.c hd_logger.c hd_utils.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -lcurl
- *
+ * 
+ *   gcc -o ./.service/hd_init hd_init.c hd_logger.c hd_utils.c hd_ipc_service.c  hd_ipc_init.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -L./libs/ -I./includes -lcurl -ljsonrpcc -lev 
+ * 
  *   cp .hdinit/bak/hdmain-0.0.3 ./.service/hdmain
  */
 int main(int argc, char const *argv[])
@@ -1639,7 +1730,11 @@ int main(int argc, char const *argv[])
 
     signal(SIGPIPE, SIG_IGN); // 当客户端（子进程）主动结束unix domain socket ,导致程序退出。
 
-    map_init(&g_map);
+    // map_init(&g_map);
+
+    // 开启ipc
+    pthread_t hd_ipc_init_thread_t;
+    pthread_create(&hd_ipc_init_thread_t,NULL,hd_ipc_init_thread_function,NULL);
 
     // struct sigaction sa_usr1;
     // sa_usr1.sa_sigaction = sig_heart_beat_handler;
@@ -1721,9 +1816,9 @@ int main(int argc, char const *argv[])
     // kill(getpid(), SIGTERM);  // SIGTERM 更温和
     // printf("这行不会执行\n");
 
-    map_free(&g_map);
+    // map_free(&g_map);
 
     hd_service_array_cleanup(&g_service_array);
-
+    ipc_init_destory();
     return 0;
 }

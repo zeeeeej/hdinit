@@ -11,13 +11,13 @@
 #include "hd_logger.h"
 #include "hd_ipc.h"
 #include "hd_utils.h"
-#include "hd_service_interface.h"
+#include "hd_ipc_service.h"
 
 #define TAG "hdmain"
 #define PREFIX "%%%%%%"
 #define VERSION "0.0.3"
 
-volatile sig_atomic_t running = 1;
+volatile sig_atomic_t g_running = 1;
 
 void handle_signal(int sig)
 {
@@ -29,10 +29,11 @@ void handle_signal(int sig)
     }
     else if (sig == SIGUSR2)
     {
-        running = 0;
+        g_running = 0;
     }
     else
     {
+
     }
 }
 
@@ -43,9 +44,18 @@ static void exit_from_parent()
     HD_LOGGER_INFO(TAG, "%s Main service exit! %s\n", PREFIX);
 }
 
+static cJSON*   p1 (const char * service_name,int index){
+    return NULL;
+}
+
+static cJSON*   p2 (const char * service_name){
+    return NULL;
+}
+
+
 /**
- * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_service_interface.c -o ./.service/hdmain
- * gcc  hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o hd_service_interface.c  ./server/files/hdmain-0.0.5
+
+ * gcc -o ./.service/hdmain hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  hd_ipc_service.c hd_ipc_client.c   -lcurl
  */
 int main(int argc, const char *argv[])
 {
@@ -57,20 +67,16 @@ int main(int argc, const char *argv[])
     {
         hd_logger_set_level(HD_LOGGER_LEVEL_INFO);
     }
-    HD_LOGGER_INFO(TAG, "%s Main service started (PID: %d)\n", PREFIX, getpid());
-
-    hd_service_interface_init(argv[1], "hdmain", VERSION, 5, exit_from_parent);
-
+    HD_LOGGER_INFO(TAG, "%s Main-Service-Started (PID: %d)\n", PREFIX, getpid());
+    ipc_service_init("hdmain",getpid(),VERSION,p1,p2);
     int index = 0;
-
-    while (hd_service_interface_running == 0)
+    while (g_running)
     {
         time_t now = time(NULL);
-        HD_LOGGER_INFO(TAG, "%s Main service heartbeat:%d\n", PREFIX, index++);
+        HD_LOGGER_INFO(TAG, "%s Main-Service-Running ... ... ...%d\n", PREFIX, index++);
         sleep(10);
     }
-
-    hd_service_interface_destory();
+    ipc_service_destory();
     HD_LOGGER_INFO(TAG, "%s Main service stopped !!!\n", PREFIX);
     return 0;
 }

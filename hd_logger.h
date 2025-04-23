@@ -35,4 +35,10 @@ void hd_logger_print(HDLoggerLevel level, const char* tag, const char* msg, ...)
 #define HD_LOGGER_ERROR(tag, msg, ...)   hd_logger_print(HD_LOGGER_LEVEL_ERROR, tag, msg, ##__VA_ARGS__)
 #define HD_LOGGER_FATAL(tag, msg, ...)   hd_logger_print(HD_LOGGER_LEVEL_FATAL, tag, msg, ##__VA_ARGS__)
 
+
+// 定义一个宏，用于打印类名、方法名、行号、错误信息和额外参数
+#define HD_PRINT_ERROR(class_name, method_name, error_message, ...) \
+    fprintf(stderr, "[Error] %s::%s (Line %d): " error_message "\n", \
+            class_name, method_name, __LINE__, ##__VA_ARGS__)
+
 #endif // __HD_LOGGER__

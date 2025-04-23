@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "hd_context.h"
 
+
 #define HD_IPC_VERSION 1
 
 #if HD_CONTEXT
@@ -20,6 +21,7 @@
 
 #define HD_IPC_SOCKET_PATH_FOR_CHILD_BUFF_SIZE 64
 #define HD_IPC_SOCKET_PATH_BUFF_SIZE 4096
+
 
 #if HD_CONTEXT
 #define HD_IPC_HEART_BEAT "./.hdinit/heartbeat"

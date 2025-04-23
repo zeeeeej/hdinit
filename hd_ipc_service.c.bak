@@ -1,0 +1,62 @@
+// #include "hd_ipc_service.h"
+// #include <jsonrpc-c.h>
+
+// static  struct jrpc_server my_server;
+// static ipc_callback_core_heartbeat_ping g_callback_heartbeat_ping = NULL;
+// static ipc_callback_core_exit_child_execl g_callback_exit_child_execl = NULL;
+
+// static cJSON * resp_CMD_ipc_core_heartbeat_ping(jrpc_context * ctx, cJSON * params, cJSON *id) {
+//     if (g_callback_heartbeat_ping)
+//     {
+//        int index  = g_callback_heartbeat_ping("hamain",1);
+//        return cJSON_CreateString("resp_CMD_ipc_core_heartbeat_ping!index ");
+//     }
+//     return cJSON_CreateString("resp_CMD_ipc_core_heartbeat_ping!");
+// }
+
+// static cJSON * resp_CMD_ipc_core_exit_child_execl(jrpc_context * ctx, cJSON * params, cJSON *id) {
+//     if (g_callback_exit_child_execl)
+//     {
+//        int index  = g_callback_exit_child_execl("hamain");
+//        return cJSON_CreateString("resp_CMD_ipc_core_exit_child_execl!index ");
+//     }
+//     return cJSON_CreateString("resp_CMD_ipc_core_exit_child_execl!");
+// }
+
+// int ipc_core_service_started(const char * service_name,int pid,const char * version){
+//     // // 1. 创建根对象
+//     // cJSON *root = cJSON_CreateObject();
+//     // if (!root) {
+//     //     fprintf(stderr, "Failed to create JSON object\n");
+//     //     return 1;
+//     // }
+
+//     // // 2. 添加键值对
+//     // cJSON_AddStringToObject(root, "name", "hdmain");
+//     // cJSON_AddNumberToObject(root, "pid", 123);
+//     // cJSON_AddStringToObject(root, "version", "0.0.1");
+//     return 0;
+// }
+
+// int ipc_core_heartbeat_pong(){
+//     return 0;
+// }
+
+// int ipc_service_init(ipc_callback_core_heartbeat_ping callback_heartbeat_ping ,ipc_callback_core_exit_child_execl callback_exit_child_execl){
+//     g_callback_heartbeat_ping  = callback_heartbeat_ping;
+//     g_callback_exit_child_execl = callback_exit_child_execl;
+//     jrpc_server_init(&my_server, PORT_SERVICE);
+//     jrpc_register_procedure(&my_server, resp_CMD_ipc_core_heartbeat_ping, CMD_ipc_core_heartbeat_ping, NULL );
+//     jrpc_register_procedure(&my_server, resp_CMD_ipc_core_exit_child_execl, CMD_ipc_core_exit_child_execl, NULL );
+//     jrpc_server_run(&my_server);
+
+
+//     return 0;
+// }
+// void ipc_service_destory(){
+//     jrpc_server_destroy(&my_server);
+// }
+
+
+
+

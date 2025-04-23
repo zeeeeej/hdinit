@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <stdio.h>
 
+#include "cJSON.h"
+
 #define DEBUG_PARAM "-debug"
 
 const char *hd_get_filename(const char *path);
@@ -127,5 +129,8 @@ void map_print(HashMap* map) ;
 void map_print_debug(HashMap* map) ;
 
 void map_pretty_print(HashMap* map);
+
+
+void hd_ipc_print_cjson(const cJSON * data ,const char * tag);
 
 #endif // __HD_UTILS__

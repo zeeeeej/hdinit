@@ -450,6 +450,9 @@ void map_free(HashMap* map) {
             if (temp->value.type == MAP_STRING) {
                 free(temp->value.data.string_val);
             }
+            else if (temp->value.type == MAP_POINTER) {
+                free(temp->value.data.pointer_val);
+            }
             free(temp);
         }
     }
@@ -602,4 +605,13 @@ void map_pretty_print(HashMap* map) {
     }
     
     printf("}\n");
+}
+
+
+void hd_ipc_print_cjson(const cJSON * data,const char * tag){
+    char *json_string = cJSON_Print(data);
+    if (json_string != NULL) {
+        printf("%s(打印):\n%s\n",tag==NULL?"":tag, json_string);
+        free(json_string);
+    }
 }
