@@ -75,7 +75,9 @@
         "*.bak": "c",
         "pthread.h": "c",
         "hd_ipc_client.h": "c",
-        "cjson.h": "c"
+        "cjson.h": "c",
+        "hd_map.h": "c",
+        "hd_safe_map.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

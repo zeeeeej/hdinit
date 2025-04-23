@@ -6,10 +6,12 @@
 #include <unistd.h>
 #include "hd_logger.h"
 #include <pthread.h>
+#include <hd_safe_map.h>
 
 #define TAG "hd_ipc_init"
 
 struct HeartbeatTaskData{
+    char * name;
     time_t time;
     /** 1:心跳正常 0:心跳断开 */
     int status;
@@ -20,6 +22,17 @@ struct HeartbeatTaskData{
 
 };
 
+static void free_heartbeat_task_data(struct HeartbeatTaskData *data){
+    data->status = 0;
+    if (data->name)
+    {
+        free(data->name);
+    }
+    data->name = NULL;
+    data->index=0;
+    data->time = 0;
+}
+
 static void HeartbeatTaskData_printf(const struct HeartbeatTaskData * data){
     if (data)
     {
@@ -28,7 +41,6 @@ static void HeartbeatTaskData_printf(const struct HeartbeatTaskData * data){
     
 }
 
-static pthread_mutex_t g_map_mutex = PTHREAD_MUTEX_INITIALIZER;
 static  struct jrpc_server my_server;
 
 static ipc_init_on_heartbeat_lost g_ipc_init_heartbeat_lost = NULL;
@@ -39,7 +51,7 @@ static ipc_callback_shell_confirm_upgrade_resp g_callback_upgrade_resp  = NULL;
 
 #define HEART_BEAT_INTERNAL  5
 
-static HashMap g_map;
+static ThreadSafeMap * g_map = NULL;
 
 static void ipc_init_on_heartbeat_lost_internal(const char * name,int index,time_t time ,int diff);
 
@@ -98,89 +110,95 @@ static cJSON * ipc_resp_cmd_ipc_core_heartbeat_pong(jrpc_context * ctx, cJSON * 
             return NULL;
         }
 
-        // 查看缓存
-        pthread_mutex_lock(&g_map_mutex);
-        MapValue value;
-        int ret;
-        ret = map_get(&g_map,name,&value);
-        if (ret == 1)
-        {   
-            if (value.type == MAP_POINTER)
+        struct HeartbeatTaskData * data  = NULL;
+        void * value = hd_map_get(g_map,name);
+        if (value!=NULL)
+        {
+            data = ( struct HeartbeatTaskData *)value;
+            if (data!=NULL)
             {
-                struct HeartbeatTaskData * data =  (struct HeartbeatTaskData * )value.data.pointer_val;
-                if (data != NULL)
+                if (data->status == 0 )
                 {
-                        int last_index =  data->index;
-                        int status = data->status;
-                        if (last_index + 1 == index)
-                        {
-                            // 更新
-                            data->index ++;
-                            data->time =  time(NULL);
-                            HD_LOGGER_INFO(TAG,"+++ pong +++ %s %d %ld \n\n",name,index,data->time);
-                            pthread_mutex_unlock(&g_map_mutex);
-
-                            // 继续
-                            sleep(HEART_BEAT_INTERNAL);
-                            cJSON* result  = g_callback_heartbeat(name,last_index+1);
-                           
-                            return result;
-                        }else{
-                            HD_LOGGER_ERROR(TAG,"hd_ipc_init.c|ipc_resp_cmd_ipc_core_heartbeat_pong|服务:%s index不匹配 %d(new) != %d(old)\n",name,index,last_index);
-                        }  
+                    return NULL;
+                }else{
+                    time_t now = time(NULL);
+                    int diff = now -data->time;
+                    if(diff > 10){
+                        data->status = 0;  
+                    } 
                 }
+                
             }
-        }else{
-           HD_LOGGER_ERROR(TAG,"hd_ipc_init.c|ipc_resp_cmd_ipc_core_heartbeat_pong|不存在的服务:%s\n",name);
-          
         }
-        pthread_mutex_unlock(&g_map_mutex);
+
+        if (data != NULL)
+        {
+                int last_index =  data->index;
+                int status = data->status;
+                if (last_index + 1 == index)
+                {
+                    // 更新
+                    data->index ++;
+                    data->time =  time(NULL);
+                    HD_LOGGER_INFO(TAG,"++++++ pong ++++++ %s %d %ld ++++++ pong ++++++ \n\n",data->name,index,data->time);
+
+                    // 继续
+                    sleep(HEART_BEAT_INTERNAL);
+                    cJSON* result  = g_callback_heartbeat(data->name,last_index+1);
+                    
+                    return result;
+                }else{
+                    HD_LOGGER_ERROR(TAG,"hd_ipc_init.c|ipc_resp_cmd_ipc_core_heartbeat_pong|服务:%s index不匹配 %d(new) != %d(old)\n",name,index,last_index);
+                }  
+        }
+            
+    
     }
     return NULL;
 }
 
 static void * hearbeat_running_thread(void * arg){
     char * service_name = ( char *)arg;
+    struct HeartbeatTaskData *data = NULL;
+    int diff = 0;
     while (1)
     {
-        sleep(3);
-        time_t now = time(NULL);
-        //pthread_mutex_lock(&g_map_mutex);
+        sleep(7);
+      
 
-        MapValue value;
-        int ret;
-        ret = map_get(&g_map,service_name,&value);
-        if (ret == 1)
+        void * value = hd_map_get(g_map,service_name);
+        if (value!=NULL)
         {
-            if (value.type == MAP_POINTER){
-                struct HeartbeatTaskData * data  = ( struct HeartbeatTaskData *)value.data.pointer_val;
-                if (data->status==0)
+            data = ( struct HeartbeatTaskData *)value;
+            if (data!=NULL)
+            {
+                if (data->status == 0 )
                 {
-                   pthread_mutex_lock(&g_map_mutex);
-                   pthread_join(data->pt,NULL);
-                   map_remove(&g_map,service_name);
-                   pthread_mutex_unlock(&g_map_mutex);
-                   break;
+                    break;
                 }else{
-                    int diff = now -data->time;
+                    time_t now = time(NULL);
+                    diff = now -data->time;
                     if(diff > 10){
-                        pthread_mutex_lock(&g_map_mutex);
-                        ipc_init_on_heartbeat_lost_internal(service_name,data->index,data->time,diff);
-                        data->status = 0;
-                        pthread_join(data->pt,NULL);
-                        map_remove(&g_map,service_name);
-                        free(service_name);
-                        pthread_mutex_unlock(&g_map_mutex);
-                    }
+                        data->status = 0;  
+                        break;
+                    } 
                 }
+                
             }
-            //pthread_mutex_unlock(&g_map_mutex); 
-        }else{
-            //pthread_mutex_unlock(&g_map_mutex);
-            break;
         }
     }
+
+    hd_map_remove(g_map,service_name);
+    if (data!=NULL)
+    {
+        free_heartbeat_task_data(data);
+    }
+
+    ipc_init_on_heartbeat_lost_internal(service_name,data->index,data->time,diff);
+
+    HD_LOGGER_ERROR(TAG,">>> 心跳任务结束:%s <<<\n",service_name);
     
+    free(service_name);
     return NULL;
 }
 
@@ -188,42 +206,43 @@ static void * hearbeat_running_thread(void * arg){
 static int start_heartbeat_task(const char * name,const char * version ,int pid){
     if (name == NULL || version == NULL)
     {
+        HD_LOGGER_ERROR(TAG,"<start_heartbeat_task> check fail \n");
         return -1;
     }
-    pthread_mutex_lock(&g_map_mutex);
-    MapValue value;
+
     int ret;
-    ret = map_get(&g_map,name,&value);
-    // 移除老的
-    if (ret == 1)
-    {   
-        if (value.type == MAP_POINTER)
+    void * value = hd_map_get(g_map,name);
+    if (value!=NULL)
+    {
+        struct HeartbeatTaskData *data = ( struct HeartbeatTaskData *)value;
+        if (data!=NULL)
         {
-            struct HeartbeatTaskData *data = ( struct HeartbeatTaskData *)value.data.pointer_val;
-            if (data->status)
-            {
-                data->status = 0;
-            }
-            pthread_join(data->pt,NULL);
-            map_remove(&g_map,name);
+            HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> delete old ...\n");
+            hd_map_remove(g_map,name);
+            HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> delete ok!\n");
         }
     }
+
+    HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> add new ...\n");
     // 添加新的
-    struct HeartbeatTaskData *data = malloc(sizeof(struct HeartbeatTaskData));
-    if (data == NULL) {
-        HD_LOGGER_ERROR(TAG,"start_heartbeat_task malloc failed");
-        pthread_mutex_unlock(&g_map_mutex);
+    struct HeartbeatTaskData *new_data = malloc(sizeof(struct HeartbeatTaskData));
+    if (new_data == NULL) {
+        HD_LOGGER_ERROR(TAG,"<start_heartbeat_task> malloc failed");
         return -1;
     }
-    data->status = 1;
-    data->index  = 0;
-    data->time =  time(NULL);
-    pthread_create(&data->pt,NULL,hearbeat_running_thread,strdup(name));
-    MapValue v = map_make_pointer(data);
-    map_put(&g_map,name,v);
-    map_pretty_print(&g_map);
-    pthread_mutex_unlock(&g_map_mutex);
-    return  data->index;       
+    new_data->status = 1;
+    new_data->index  = 0;
+    new_data->time =  time(NULL);
+    new_data->name = strdup(name);
+    pthread_create(&new_data->pt,NULL,hearbeat_running_thread,strdup(name));
+    ret = hd_map_put(g_map,name,new_data);
+    if (!ret)
+    {
+        HD_LOGGER_ERROR(TAG,"<start_heartbeat_task> hd_map_put g_map=%p name=%s data=%p failed \n",g_map,name,new_data);
+       return -1;
+    }
+    HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> add new ok.\n");
+    return  new_data->index;       
     
 }
 
@@ -310,7 +329,7 @@ int ipc_init_initialize(
     ipc_callback_shell_confirm_upgrade_resp callback_upgrade_resp
 ){
     HD_LOGGER_INFO(TAG,"<ipc_init_initialize>");
-    map_init(&g_map);
+    g_map = hd_map_init(20);
     g_ipc_init_on_connected = call_ipc_init_on_connected;
     g_ipc_init_heartbeat_lost = callback_ipc_on_init_heartbeat_lost;
     g_callback_heartbeat = callback_heartbeat;
@@ -324,27 +343,30 @@ int ipc_init_initialize(
     return 0;
 }
 
+
+
+
+static void cancelHeartbeatThread(void* value, void* context){
+    // struct HeartbeatTaskData *data = ( struct HeartbeatTaskData *)value;
+    // if (data==NULL)
+    // {
+    //     return ;
+    // }
+    // HD_LOGGER_DEBUG(TAG,"<cancelHeartbeatThread> pthread_join->%s ...\n",data->name);
+    // data->status = 0;
+    // pthread_join(data->pt,NULL);
+    // if (data->name)
+    // {
+    //     free(data->name);
+    // }
+    // data->name = NULL;
+    // data->index=0;
+    // pthread_attr_destroy(&data->pt);
+    // data->time = 0;
+}
+
 static void cancelHeartbeatThreads(){
-    HD_LOGGER_DEBUG(TAG,"<cancelHeartbeatThreads>");
-    pthread_mutex_lock(&g_map_mutex);
-    for (int i = 0; i < HASH_SIZE; i++) {
-        HashNode* current = g_map.buckets[i];
-        while (current != NULL) {
-            HashNode* temp = current;
-            current = current->next;
-            MapValue value =  temp->value;
-            if (value.type == MAP_POINTER)
-            {
-                struct HeartbeatTaskData * data  = ( struct HeartbeatTaskData *)value.data.pointer_val;
-                data->status = 0;
-                HD_LOGGER_DEBUG(TAG,"   <cancelHeartbeatThreads> pthread_join->%s ...\n",temp->key);
-                pthread_join(data->pt,NULL);
-                HD_LOGGER_DEBUG(TAG,"   <cancelHeartbeatThreads> pthread_join->%s ok.\n",temp->key);
-            }
-        }
-    }
-    pthread_mutex_unlock(&g_map_mutex);
-    HD_LOGGER_DEBUG(TAG,"<cancelHeartbeatThreads> end");
+    hd_map_for_each(g_map,cancelHeartbeatThread,NULL);
 }
 
 void ipc_init_destory(){
@@ -354,9 +376,8 @@ void ipc_init_destory(){
     g_callback_service_started = NULL;
     g_callback_upgrade_resp = NULL;
     g_ipc_init_heartbeat_lost = NULL;
-    pthread_mutex_lock(&g_map_mutex);
-    map_free(&g_map);
-    pthread_mutex_unlock(&g_map_mutex);
+    hd_map_deinit(g_map);
+    g_map = NULL;
     jrpc_server_destroy(&my_server);
   
 }

@@ -10,10 +10,8 @@
 #include "hd_logger.h"
 #include "hd_utils.h"
 #include "hd_ipc.h"
-#include "hd_service_interface.h"
+
 #include "hd_ipc_service.h"
-
-
 
 #define TAG "hdlog"
 #define PREFIX ">>>>>>"
@@ -51,17 +49,13 @@ static cJSON*   p2 (const char * service_name){
 
 
 /**
- * gcc hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_service_interface.c -o ./.service/hdlog
- * gcc  hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c -o ./server/files/hdlog-1.0.2
- * 
- * gcc hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_ipc_service.c -L./.shared/ -lhsi -ljsonrpcc -lev -o ./.service/hdlog
  * 
  * export DYLD_LIBRARY_PATH=/Users/xiangpengle/Documents/linux/code/hdinit/.shared/libhsi.so:$DYLD_LIBRARY_PATH
  * export LD_LIBRARY_PATH=/Users/xiangpengle/Documents/linux/code/hdinit/.shared/libhsi.so:$LD_LIBRARY_PATH
  * 
  * 
  * 
- * -> gcc -o ./.service/hdlog hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_service_interface.c hd_ipc_service.c hd_ipc_client.c   -lcurl 
+ * -> gcc -o ./.service/hdlog hd_log.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c hd_ipc_service.c hd_ipc_client.c   -lcurl 
  * 
  * 
  */
@@ -82,7 +76,7 @@ int main(int argc,const char *argv[]) {
 
     int index = 0;
     while (g_running) {
-        HD_LOGGER_INFO(TAG,"%s Log-Service-Running ... ... ... %d <%d> \n",PREFIX, index++,hd_service_interface_running);
+        HD_LOGGER_INFO(TAG,"%s Log-Service-Running ... ... ... <%d> \n",PREFIX,index++);
        
         time_t now = time(NULL);
   
@@ -91,6 +85,6 @@ int main(int argc,const char *argv[]) {
     // hd_service_interface_destory();
     ipc_service_destory();
  
-    HD_LOGGER_INFO(TAG,"%s Log-Service-Start Stopped !!!!<%d>\n",PREFIX,hd_service_interface_running);
+    HD_LOGGER_INFO(TAG,"%s Log-Service-Start Stopped !!!! \n",PREFIX);
     return 0;
 }

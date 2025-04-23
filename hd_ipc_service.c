@@ -86,7 +86,7 @@ static  void  ipc_client_recv_func_internal(cJSON* data){
        return ;
     }
     
-    HD_LOGGER_ERROR(TAG, "--- ping --- %s %d \n\n",name,index);
+    HD_LOGGER_ERROR(TAG, "------ ping ------ %s %d ------ ping ------\n\n",name,index);
 
     cJSON * resp_data = ipc_core_heartbeat_pong(name,index+1);
     if (resp_data)
