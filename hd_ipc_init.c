@@ -159,15 +159,17 @@ static cJSON * ipc_resp_cmd_ipc_core_heartbeat_pong(jrpc_context * ctx, cJSON * 
 
 static void * hearbeat_running_thread(void * arg){
     char * service_name = ( char *)arg;
+    struct HeartbeatTaskData *old_data = ( struct HeartbeatTaskData *)hd_map_get(g_map,service_name);
     struct HeartbeatTaskData *data = NULL;
     int diff = 0;
+    int no_has_this_data = 0;
     while (1)
     {
         sleep(7);
       
 
         void * value = hd_map_get(g_map,service_name);
-        if (value!=NULL)
+        if (value != NULL)
         {
             data = ( struct HeartbeatTaskData *)value;
             if (data!=NULL)
@@ -180,24 +182,38 @@ static void * hearbeat_running_thread(void * arg){
                     diff = now -data->time;
                     if(diff > 10){
                         data->status = 0;  
+                        ipc_init_on_heartbeat_lost_internal(service_name,data->index,data->time,diff);
                         break;
                     } 
                 }
-                
             }
+        }else{
+            no_has_this_data = 1;
+            break;
         }
     }
-
-    hd_map_remove(g_map,service_name);
-    if (data!=NULL)
-    {
-        free_heartbeat_task_data(data);
-    }
-
-    ipc_init_on_heartbeat_lost_internal(service_name,data->index,data->time,diff);
-
-    HD_LOGGER_ERROR(TAG,">>> 心跳任务结束:%s <<<\n",service_name);
+    // if (no_has_this_data)
+    // {
+    //     free(service_name);
+    //     return NULL;
+    // }
     
+    // if (data->pt !=NULL && (&old_data->pt == &(data->pt)))
+    // {
+    //     ipc_init_on_heartbeat_lost_internal(service_name,data->index,data->time,diff);
+
+    //     // if (data!=NULL)
+    //     // {
+    //     //     free_heartbeat_task_data(data);
+    //     // }
+    //     // hd_map_remove(g_map,service_name);
+    
+    //     HD_LOGGER_ERROR(TAG,">>> 心跳任务结束:%s 一致<<<\n",service_name);
+       
+    // }else{
+    //     HD_LOGGER_ERROR(TAG,">>> 心跳任务结束:%s 不一致 <<<\n",service_name);
+    // }
+    HD_LOGGER_ERROR(TAG,">>> 心跳任务结束:%s<<<\n",service_name);
     free(service_name);
     return NULL;
 }
@@ -211,15 +227,30 @@ static int start_heartbeat_task(const char * name,const char * version ,int pid)
     }
 
     int ret;
-    void * value = hd_map_get(g_map,name);
-    if (value!=NULL)
-    {
-        struct HeartbeatTaskData *data = ( struct HeartbeatTaskData *)value;
-        if (data!=NULL)
-        {
-            HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> delete old ...\n");
+    struct HeartbeatTaskData *data  = NULL;
+
+    HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> remove old ...\n");
+    while (1)
+    {   
+        hd_map_print_all(g_map,"=");
+        void * value = hd_map_get(g_map,name);
+        if (value != NULL){
+            data = ( struct HeartbeatTaskData *)value;
+        }else{
+            data = NULL;
+        }
+
+        if (data!=NULL){
+            HD_LOGGER_DEBUG(TAG,">>>> 等待任务:%s删除 ！！！<<<< \n",name);
+            data->status = 0;
+            pthread_join(data->pt,NULL);
             hd_map_remove(g_map,name);
-            HD_LOGGER_DEBUG(TAG,"<start_heartbeat_task> delete ok!\n");
+            free_heartbeat_task_data(data);
+            HD_LOGGER_DEBUG(TAG,">>>> 等待任务:%s删除完毕 ！！！<<<< \n",name);
+            // sleep(1);
+        }else{
+            HD_LOGGER_DEBUG(TAG,">>>> 不存在 ！！！<<<< \n");
+            break;
         }
     }
 

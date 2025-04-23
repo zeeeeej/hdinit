@@ -128,7 +128,18 @@ int ipc_service_init(
 
     g_callback_exit_child_execl = callback_exit_child_execl;
     g_callback_heartbeat_ping = g_callback_heartbeat_ping;
-    ret  = ipc_client_initialize("127.0.0.1",PORT_INIT);
+    int index = 0;
+    while (1)
+    {
+        ret  = ipc_client_initialize("127.0.0.1",PORT_INIT);
+        if (ret==0 || index>5)
+        {
+            break;
+        }
+        index++;
+        sleep(1);    
+    }
+
     if (ret!=0)
     {
         HD_LOGGER_ERROR(TAG, "<ipc_service_init>ipc_client_initialize error %d .\n",ret);
