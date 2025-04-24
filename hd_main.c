@@ -17,7 +17,8 @@
 #define PREFIX "%%%%%%"
 #define VERSION "0.0.3"
 
-volatile sig_atomic_t g_running = 1;
+volatile static sig_atomic_t g_running = 1;
+static int g_index = 0;
 
 void handle_signal(int sig)
 {
@@ -44,18 +45,19 @@ static void exit_from_parent()
     HD_LOGGER_INFO(TAG, "%s Main service exit! %s\n", PREFIX);
 }
 
-static cJSON*   p1 (const char * service_name,int index){
-    return NULL;
-}
-
-static cJSON*   p2 (const char * service_name){
-    return NULL;
-}
+static void   ipc_service_on_exit_internal (){
+    exit_from_parent();
+    g_running = 0;
+ }
+ 
+ static void  ipc_service_on_heartbeat_ping_internal (int index){
+    g_index = index;
+ }
 
 
 /**
 
- * gcc -o ./.service/hdmain hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  hd_ipc_service.c hd_ipc_client.c   -lcurl
+ * gcc -o ./.service/hdmain hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  hd_ipc_service.c hd_ipc_client.c hd_ipc_protocol.c  -lcurl
  */
 int main(int argc, const char *argv[])
 {
@@ -68,12 +70,12 @@ int main(int argc, const char *argv[])
         hd_logger_set_level(HD_LOGGER_LEVEL_INFO);
     }
     HD_LOGGER_INFO(TAG, "%s Main-Service-Started (PID: %d)\n", PREFIX, getpid());
-    ipc_service_init("hdmain",getpid(),VERSION,p1,p2);
+    ipc_service_init("hdmain",getpid(),VERSION,ipc_service_on_exit_internal,ipc_service_on_heartbeat_ping_internal);
     int index = 0;
     while (g_running)
     {
         time_t now = time(NULL);
-        HD_LOGGER_INFO(TAG, "%s Main-Service-Running ... ... ...%d\n", PREFIX, index++);
+        HD_LOGGER_INFO(TAG, "%s Main-Service-Running ... ... ...%d-%d\n", PREFIX, index++,g_index);
         sleep(10);
     }
     ipc_service_destory();

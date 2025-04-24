@@ -307,7 +307,7 @@ static int write_to_client(int client_fd, const char *buffer, size_t buffer_size
             struct timespec req = {0, 200000000}; // 0秒 + 200,000,000 纳秒 = 200ms
             nanosleep(&req, NULL);
             ssize_t size  = write(client_fd, buffer, buffer_size);
-            if (size  == buffer_size)
+            if ((size_t)size  == buffer_size)
             {
                 printf("write() Successfully sent %zd bytes.\n", size);
             }
@@ -1371,16 +1371,11 @@ static void hd_init_exit()
     opt_reboot_internal();
 }
 
-static cJSON*  ipc_resp_cmd_ipc_core_heartbeat_pong(const char * service_name,int index) {
-    return  ipc_request_core_heartbeat_ping(service_name,index);
+static void ipc_resp_cmd_ipc_core_heartbeat_pong(const char * service_name,int index) {
 }
 
-static cJSON*  ipc_resp_cmd_ipc_core_service_started(const char * service_name,int pid,const char * version) {
-    return NULL;
-}
+static void ipc_resp_cmd_ipc_shell_confirm_upgrade_resp(const char * service_name) {
 
-static cJSON*  ipc_resp_cmd_ipc_shell_confirm_upgrade_resp(const char * service_name) {
-    return NULL;
 }
 
 static void ipc_init_on_heartbeat_lost_internal(const char * name,int index,time_t time){
@@ -1423,7 +1418,6 @@ static void * hd_ipc_init_thread_function(void *arg){
         ipc_init_on_connected_internal,
         ipc_init_on_heartbeat_lost_internal,
         ipc_resp_cmd_ipc_core_heartbeat_pong,
-        ipc_resp_cmd_ipc_core_service_started,
         ipc_resp_cmd_ipc_shell_confirm_upgrade_resp
     );
     return NULL;
@@ -1431,9 +1425,14 @@ static void * hd_ipc_init_thread_function(void *arg){
 
 /**
  * 
- *   gcc -o ./.service/hd_init hd_init.c hd_logger.c hd_utils.c hd_ipc_service.c  hd_ipc_init.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -L./libs/ -I./includes -lcurl -ljsonrpcc -lev 
+ *   gcc -o ./.service/hd_init hd_init.c hd_logger.c hd_utils.c   hd_ipc_init.c hd_service.c hd_ipc.c -lpthread hd_http.c ./cJSON.c -L./libs/ -I./includes -lcurl -ljsonrpcc -lev -lhdsafemap hd_ipc_protocol.c
  * 
  *   cp .hdinit/bak/hdmain-0.0.3 ./.service/hdmain
+ * 
+ * 
+ *  export LD_LIBRARY_PATH=./libs:$LD_LIBRARY_PATH          linux
+ *  export DYLD_LIBRARY_PATH=./libs:$DYLD_LIBRARY_PATH   mac
+ * 
  */
 int main(int argc, char const *argv[])
 {

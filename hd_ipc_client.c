@@ -119,18 +119,5 @@ void ipc_client_destory(){
     g_ipc_client_recv_func = NULL;
 }
 
-cJSON* ipc_client_create_json(const char * rpc_method,int rpc_id,const char * rpc_version,cJSON * rpc_params){
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        fprintf(stderr, "ipc_core_heartbeat_pong() fail.\n");
-        return NULL;
-    }    
-    cJSON_AddStringToObject(root, "method", rpc_method);
-    cJSON_AddStringToObject(root, "jsonrpc", rpc_version);
-    cJSON_AddNumberToObject(root, "id", rpc_id);
-    cJSON_AddItemToObject(root,"params",rpc_params);
-    return root;
-}
-
 
 

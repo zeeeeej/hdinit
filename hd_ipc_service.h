@@ -4,18 +4,17 @@
 #include "hd_ipc_protocol.h"
 #include "cJSON.h"
 
-typedef cJSON* (*ipc_callback_core_heartbeat_ping)(const char * service_name,int index);
-typedef cJSON*  (*ipc_callback_core_exit_child_execl)(const char * service_name);
+typedef void (*ipc_service_on_exit)(void );
+typedef void (*ipc_service_on_heartbeat_ping)(int index );
 
 int ipc_service_init(
-    const char * service_name,
+    const char *service_name,
     int pid,
-    const char * version,
-    ipc_callback_core_heartbeat_ping callback_heartbeat_ping ,
-    ipc_callback_core_exit_child_execl callback_exit_child_execl
+    const char *version,
+    ipc_service_on_exit ipc_service_on_exit_callback,
+    ipc_service_on_heartbeat_ping ipc_service_on_heartbeat_ping_callback
 );
+
 void ipc_service_destory();
-cJSON* ipc_core_service_started(const char * service_name,int pid,const char * version);
-cJSON* ipc_core_heartbeat_pong(const char * service_name,int index);
 
 #endif // __HD_IPC_SERVICE__
