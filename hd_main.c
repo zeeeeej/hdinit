@@ -58,6 +58,9 @@ static void   ipc_service_on_exit_internal (){
 /**
 
  * gcc -o ./.service/hdmain hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  hd_ipc_service.c hd_ipc_client.c hd_ipc_protocol.c  -lcurl
+
+    gcc -o ./server/files/hdmain-0.0.4-0424 hd_main.c hd_logger.c hd_utils.c hd_ipc.c cJSON.c  hd_ipc_service.c hd_ipc_client.c hd_ipc_protocol.c  -lcurl
+ 
  */
 int main(int argc, const char *argv[])
 {

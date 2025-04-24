@@ -212,7 +212,7 @@ void hd_print_progress_bar(int percent) {
     // 打印进度条（\r 覆盖当前行）
     // printf("\r[%s] %d%%", bar, percent);
     printf("\r\033[K[%s] %d%%", bar, percent); // \033[K 清除右侧所有内容
-    printf("\r...");
+    printf("\r");
     fflush(stdout); // 立即刷新输出缓冲区
 }
 

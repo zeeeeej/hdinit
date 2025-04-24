@@ -704,7 +704,13 @@ static int hd_ipc_continu_update(int client_fd, HDService *service, const hd_htt
     // 通知开始下载
     snprintf(new_path, 1024, "%s/ota/%s", HD_INIT_ROOT, resp->filename);
 
-    snprintf(tmp, sizeof(tmp), "[%s] Downloading ...\n%s to %s ...\n", service->name, resp->url, new_path);
+    snprintf(tmp, sizeof(tmp), "[%s] Downloading ...\n", service->name);
+    ipc_write_json_print_internal(client_fd, tmp);
+
+    snprintf(tmp, sizeof(tmp), "from <%s> \n",resp->url);
+    ipc_write_json_print_internal(client_fd, tmp);
+
+    snprintf(tmp, sizeof(tmp), "to <%s> \n",new_path);
     ipc_write_json_print_internal(client_fd, tmp);
 
     ret = hd_http_download(resp->url, new_path, progress_callback);
