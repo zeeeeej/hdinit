@@ -18,6 +18,7 @@ files=(
     "./_hdmain/build/hdmain"
     "./_hdlog/build/hdlog"
     "./_hdshell/build/hdshell"
+    "/home/book/RPC_LED_TEMP_HUMI_SERVER/rpc_server"
 )
 
 # 检查所有文件是否存在

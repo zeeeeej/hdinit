@@ -25,7 +25,7 @@
 #if HD_CONTEXT
 #define HD_INIT_SERVICE_MAIN_PATH "./.service/hdmain"
 #else
-#define HD_INIT_SERVICE_MAIN_PATH "/root/hdmain"
+#define HD_INIT_SERVICE_MAIN_PATH "/root/rpc_server"
 #endif
 
 #define HD_INIT_SERVICE_LOG "hdlog"

@@ -1,5 +1,5 @@
 # Compiler
-CC = gcc
+CC = arm-buildroot-linux-gnueabihf-gcc
 # Compiler flags
 CFLAGS = -fPIC
 # Source files
