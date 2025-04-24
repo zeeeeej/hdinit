@@ -286,6 +286,7 @@ static cJSON *ipc_resp_cmd_ipc_core_service_started(jrpc_context *ctx, cJSON *pa
         return NULL;
     }
     // 启动心跳任务
+    HD_LOGGER_DEBUG(TAG, "======开启心跳任务%s==================================\n",name);
     HD_LOGGER_DEBUG(TAG, "start_heartbeat_task %s %s %d ...... \n", name, version, pid);
     int index = start_heartbeat_task(name, version, pid);
     HD_LOGGER_DEBUG(TAG, "start_heartbeat_task %s %s %d result:%d \n", name, version, pid, index);
