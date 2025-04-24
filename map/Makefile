@@ -1,10 +1,9 @@
 # 编译器
-CC = gcc
+CC = arm-buildroot-linux-gnueabihf-gcc
 
 # 编译选项
-# CFLAGS = -I/usr/local/imx6ull/curl/include -I/usr/local/imx6ull/ssl/include
-# LDFLAGS = -L/usr/local/imx6ull/curl/lib -L/usr/local/imx6ull/ssl/lib
-LIBS = -lpthread
+CFLAGS += -fPIC -Wall -Wextra  # 添加 -fPIC 和警告选项
+LDFLAGS += -shared -fPIC -lpthread -lc  # 添加共享库和链接库选项
 
 # 源文件目录和文件
 SRC_DIR = .
@@ -14,8 +13,8 @@ SRCS = $(SRC_DIR)/hd_safe_map.c
 BUILD_DIR = build
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
-# 可执行文件
-TARGET = $(SRC_DIR)/../libs/libhdsafemap.so
+# 目标共享库
+TARGET = ../libs/libhdsafemap.so
 
 # 默认目标
 all: $(BUILD_DIR) $(TARGET)
@@ -24,17 +23,17 @@ all: $(BUILD_DIR) $(TARGET)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# 生成可执行文件
+# 生成共享库
 $(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -shared -fPIC -o $@ $^ $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ $^
 
-# 编译源文件到目标目录
+# 编译源文件到目标文件
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # 清理生成的文件
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(TARGET)
 
 # 伪目标
 .PHONY: all clean
