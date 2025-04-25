@@ -88,6 +88,14 @@ static int _start_qt(){
 
 }
 
+static const  char *env[] = {
+        "QT_QPA_GENERIC_PLUGINS=tslib:/dev/input/event1",
+        "QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0",
+        "QT_QPA_FONTDIR=/usr/lib/fonts/",
+        NULL  // 必须以NULL结尾
+    };
+
+
 
 static int start_qt_real(){
 	// 设置环境变量数组（注意：会完全替换子进程的环境变量）
@@ -235,7 +243,14 @@ static int op_start_service_internal(HDService *service)
         // 子进程分支
         _D_("_debug_ op_start_service_internal child start.\n");
         HD_LOGGER_INFO(TAG, "op_start_service_internal[%s:%s]Child:[%d/%d] do execl... \n", start_name, start_path, getppid(), getpid());
-        int ret = execl(service->path, service->name, NULL, NULL); // 成功时无返回值，失败返回 -1
+	int ret;
+	if(strcmp(start_name,HD_INIT_SERVICE_QT)==0){
+		ret = execl(service->path, service->name, NULL,env);
+	}else{
+	
+        	ret = execl(service->path, service->name, NULL, NULL); // 成功时无返回值，失败返回 -1
+	}
+
         HD_LOGGER_ERROR(TAG, "op_start_service_internal[%s:%s]Child but Child execl() fail : %d! \n", start_name, start_path, ret);
         // exit(EXIT_FAILURE);
         _exit(ERROR_CHILD_START_FAIL); // 通知Parent
@@ -1570,8 +1585,29 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
 
 	}
 
-	int ret = start_qt();
-	HD_LOGGER_ERROR(TAG,"======== > >>>>>>>>start_qt() fail!");
+	 HDService *old_qt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_QT);
+        if(old_uart_service == NULL){
+                HDService qt_service = {
+                .name = HD_INIT_SERVICE_QT,
+                .path = HD_INIT_SERVICE_QT_PATH,
+                .status = HD_SERVICE_STATUS_STOPPED,
+                .type = HD_SERVICE_TYPE_SECONDARY,
+                .depends_on_count = 1,
+                .version = "0.0.0",
+                .depends_on = {}};
+                hd_service_array_add(&g_service_array, &qt_service);
+                op_start_service_internal(&qt_service);
+        } else {
+                if(old_qt_service->status == HD_SERVICE_STATUS_STARTED){
+                }else{
+                  op_start_service_internal(old_qt_service);
+                }
+
+        }
+
+
+//	int ret = start_qt();
+//	HD_LOGGER_ERROR(TAG,"======== > >>>>>>>>start_qt() fail!");
     }
     g_blocking = 0;
 }

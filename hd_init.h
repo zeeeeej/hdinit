@@ -56,6 +56,13 @@
 #define HD_INIT_SERVICE_UART_PATH "/root/hduart"
 #endif
 
+#define HD_INIT_SERVICE_QT "hdqt"
+#if HD_CONTEXT
+#define HD_INIT_SERVICE_QT_PATH "./.service/hdqt"
+#else
+#define HD_INIT_SERVICE_QT_PATH "/root/hdqt"
+#endif
+
 #define HD_INIT_SERVICE_SHELL "hdshell"
 
 #if HD_CONTEXT
