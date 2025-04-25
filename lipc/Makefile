@@ -6,15 +6,15 @@ CFLAGS += -fPIC -Wall -Wextra  # 添加 -fPIC 和警告选项
 LDFLAGS += -shared -fPIC -lpthread -lc  # 添加共享库和链接库选项
 
 # 源文件目录和文件
-SRC_DIR = .
-SRCS = $(SRC_DIR)/hd_safe_map.c
+SRC_DIR = ..
+SRCS = $(SRC_DIR)/hd_ipc_service.c  $(SRC_DIR)/hd_ipc_client.c  $(SRC_DIR)/hd_utils.c  $(SRC_DIR)/hd_logger.c  $(SRC_DIR)/hd_ipc_protocol.c
 
 # 目标文件目录和文件
 BUILD_DIR = build
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 
 # 目标共享库
-TARGET = ../libs/libhdsafemap.so
+TARGET = ../libs/libhdservice.so
 
 # 默认目标
 all: $(BUILD_DIR) $(TARGET)

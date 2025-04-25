@@ -49,7 +49,7 @@ int ipc_client_send(cJSON* data){
      
 }
 
-void ipc_client_recv(ipc_client_recv_func func){
+void ipc_client_recv(const char * name,ipc_client_recv_func func){
     g_ipc_client_recv_func = func;
     char buf[BUFF_SIZE] = {0};
     size_t iLen;
@@ -82,7 +82,8 @@ void ipc_client_recv(ipc_client_recv_func func){
         }
         else
         {
-            HD_PRINT_ERROR("hd_ipc_client.c","ipc_client_recv","read fail %zu \n",iLen);
+            HD_PRINT_ERROR("hd_ipc_client.c","ipc_client_recv","read fail %s %zu \n",name,iLen);
+	    break;
         }
     }
     printf("[rpc-ipc_client_recv] exit !!! \n");

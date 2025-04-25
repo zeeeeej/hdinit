@@ -11,6 +11,6 @@ void ipc_client_destory();
 
 int ipc_client_send(cJSON* data);
 
-void ipc_client_recv(ipc_client_recv_func func);
+void ipc_client_recv(const char*name,ipc_client_recv_func func);
 
 #endif // __HD_IPC_CLIENT__

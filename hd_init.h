@@ -35,6 +35,27 @@
 #define HD_INIT_SERVICE_LOG_PATH "/root/hdlog"
 #endif
 
+#define HD_INIT_SERVICE_RPC "hdrpc"
+#if HD_CONTEXT
+#define HD_INIT_SERVICE_RPC_PATH "./.service/hdrpc"
+#else
+#define HD_INIT_SERVICE_RPC_PATH "/root/hdrpc"
+#endif
+
+#define HD_INIT_SERVICE_MQTT "hdmqtt"
+#if HD_CONTEXT
+#define HD_INIT_SERVICE_MQTT_PATH "./.service/hdmqtt"
+#else
+#define HD_INIT_SERVICE_MQTT_PATH "/root/hdmqtt"
+#endif
+
+#define HD_INIT_SERVICE_UART "hduart"
+#if HD_CONTEXT
+#define HD_INIT_SERVICE_UART_PATH "./.service/hduart"
+#else
+#define HD_INIT_SERVICE_UART_PATH "/root/hduart"
+#endif
+
 #define HD_INIT_SERVICE_SHELL "hdshell"
 
 #if HD_CONTEXT

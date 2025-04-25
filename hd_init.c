@@ -44,6 +44,97 @@ typedef struct
 
 #define _D_(msg, ...) HD_LOGGER_DEBUG(TAG, msg, ##__VA_ARGS__)
 
+
+static void hide_terminal_cursor() {
+    int tty_fd = open("/dev/tty0", O_WRONLY);
+    if (tty_fd >= 0) {
+        write(tty_fd, "\033[9;0]", 6);  // 发送ANSI控制序列
+        close(tty_fd);
+    } else {
+        perror("Failed to open /dev/tty0");
+    }
+}
+
+static int _start_qt(){
+	// 1. 隐藏终端光标
+ //   hide_terminal_cursor();
+
+    // 2. 设置Qt环境变量
+ //   char *env[] = {
+ //       "QT_QPA_GENERIC_PLUGINS=tslib:/dev/input/event1",
+ //       "QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0",
+ //       "QT_QPA_FONTDIR=/usr/lib/fonts/",
+ //       NULL
+ //   };
+
+    // 3. 启动Qt程序
+    pid_t pid = fork();
+    if (pid == 0) { // 子进程
+        execle("/root/LED_TEMP_HUMI", "./LED_TEMP_HUMI", NULL, NULL);
+        perror("execle failed");
+        exit(1);
+    } else if (pid > 0) { // 父进程
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            printf("Qt程序退出码: %d\n", WEXITSTATUS(status));
+        }
+    } else {
+        perror("fork failed");
+        return 1;
+    }
+	
+    return 0;
+
+}
+
+
+static int start_qt_real(){
+	// 设置环境变量数组（注意：会完全替换子进程的环境变量）
+    char *env[] = {
+        "QT_QPA_GENERIC_PLUGINS=tslib:/dev/input/event1",
+        "QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0",
+        "QT_QPA_FONTDIR=/usr/lib/fonts/",
+        NULL  // 必须以NULL结尾
+    };
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork failed");
+        return 1;
+    } else if (pid == 0) { // 子进程
+        
+        execle("/root/LED_TEMP_HUMI", "/root/LED_TEMP_HUMI", (char *)NULL, env);
+        // 只有exec失败才会执行到这里
+        perror("execle failed");
+        _exit(1);  // 使用_exit避免刷新stdio缓冲区
+    } else { // 父进程
+        int status;
+        waitpid(pid, &status, 0);
+        
+        if (WIFEXITED(status)) {
+            printf("Child exited with status %d\n", WEXITSTATUS(status));
+            return WEXITSTATUS(status);
+        } else {
+            printf("Child terminated abnormally\n");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void * start_qt_thread(void * arg){
+	start_qt_real();
+	return NULL;
+}
+
+static int start_qt(){
+	pthread_t t;
+	pthread_create(&t,NULL,start_qt_thread,NULL);
+	return 0;
+}
+
+
 /**
  * 主进程等待子进程退出
  * 线程函数
@@ -217,6 +308,16 @@ static int init_core_services()
         .depends_on = {}};
     hd_service_array_add(&g_service_array, &log_service);
 
+    HD_LOGGER_INFO(TAG, "init_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+    HDService rpc_service = {
+        .name = HD_INIT_SERVICE_RPC,
+        .path = HD_INIT_SERVICE_RPC_PATH,
+        .status = HD_SERVICE_STATUS_STOPPED,
+        .type = HD_SERVICE_TYPE_MAIN,
+        .depends_on_count = 1,
+        .version = "0.0.0",
+        .depends_on = {HD_INIT_SERVICE_LOG}};
+    hd_service_array_add(&g_service_array, &rpc_service);
     return 0;
 }
 
@@ -971,6 +1072,8 @@ static int start_core_services()
         HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_MAIN, HD_INIT_SERVICE_MAIN_PATH);
         return -1;
     }
+	
+    sleep(1);
 
     // 启动日志服务
     HD_LOGGER_INFO(TAG, "start_core_services[%s:%s] ...\n", HD_INIT_SERVICE_LOG, HD_INIT_SERVICE_LOG_PATH);
@@ -980,7 +1083,16 @@ static int start_core_services()
         HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_LOG, HD_INIT_SERVICE_LOG_PATH);
         return -1;
     }
+    sleep(1);
 
+    HD_LOGGER_INFO(TAG, "start_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+    ret = op_start_service_by_name(HD_INIT_SERVICE_RPC);
+    if (ret < 0)
+    {
+        HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+        return -1;
+    }
+    sleep(1);	
     // // 启动shell
     // HD_LOGGER_INFO(TAG, "start service[%s:%s] ...\n", HD_INIT_SERVICE_SHELL, HD_INIT_SERVICE_SHELL_PATH);
     // ret = op_start_service_by_name(HD_INIT_SERVICE_SHELL);
@@ -1402,7 +1514,7 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
     HDService *service =  hd_service_array_find_by_name(&g_service_array,service_name);
     if (service==NULL)
     {
-        HD_LOGGER_WARNING(TAG,"[ipc_init_on_connected_internal]service not fond!");
+        HD_LOGGER_WARNING(TAG,"[ipc_init_on_connected_internal]service:<%s> not fond!!!! \n",service_name);
         return ;
     }
     
@@ -1415,7 +1527,52 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
     {
         start_main_service_count = 0;
     }
+    else if (strcmp(HD_INIT_SERVICE_RPC, service->name) == 0)
+    {
+        // 启动hdmqtt hduart
+	 HDService *old_mqtt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_MQTT);
+	 if(old_mqtt_service == NULL){
+		HDService mqtt_service = {
+        	.name = HD_INIT_SERVICE_MQTT,
+       		 .path = HD_INIT_SERVICE_MQTT_PATH,
+        	.status = HD_SERVICE_STATUS_STOPPED,
+        	.type = HD_SERVICE_TYPE_SECONDARY,
+        	.depends_on_count = 1,
+       		.version = "0.0.0",
+        	.depends_on = {}};
+    		hd_service_array_add(&g_service_array, &mqtt_service);
+		op_start_service_internal(&mqtt_service);
+	 } else {
+	 	if(old_mqtt_service->status == HD_SERVICE_STATUS_STARTED){
+		}else{
+		  op_start_service_internal(old_mqtt_service);
+		}
+	 
+	 }
 
+	HDService *old_uart_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_UART);
+	if(old_uart_service == NULL){
+	 	HDService uart_service = {
+        	.name = HD_INIT_SERVICE_UART,
+        	.path = HD_INIT_SERVICE_UART_PATH,
+        	.status = HD_SERVICE_STATUS_STOPPED,
+        	.type = HD_SERVICE_TYPE_SECONDARY,
+        	.depends_on_count = 1,
+        	.version = "0.0.0",
+        	.depends_on = {}};
+    		hd_service_array_add(&g_service_array, &uart_service);
+		op_start_service_internal(&uart_service);
+	} else {
+		if(old_uart_service->status == HD_SERVICE_STATUS_STARTED){
+                }else{
+                  op_start_service_internal(old_uart_service);
+                }
+
+	}
+
+	int ret = start_qt();
+	HD_LOGGER_ERROR(TAG,"======== > >>>>>>>>start_qt() fail!");
+    }
     g_blocking = 0;
 }
 

@@ -129,7 +129,7 @@ static void ipc_client_recv_func_internal(cJSON *data)
 
 static void *recv_thread(void *arg)
 {
-    ipc_client_recv(ipc_client_recv_func_internal);
+    ipc_client_recv(g_service_name,ipc_client_recv_func_internal);
     return NULL;
 }
 
