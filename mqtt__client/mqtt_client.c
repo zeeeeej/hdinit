@@ -87,8 +87,16 @@ void*publish_thread(void*arg){
 		int humi ;
 		int temp ;
 		int led0 ;
-		while(0!=rpc_dht11_read(&humi,&temp));
-		while(0!=rpc_led_read(&led0));
+		int max = 0;
+		while(0!=rpc_dht11_read(&humi,&temp)){
+			//if(max++>10)break;
+			break;
+		}
+		max= 0;
+		while(0!=rpc_led_read(&led0)){
+			//if(max++>10)break;
+			break;
+		}
 		/* read */
 		
 		if(cache_humi !=humi || cache_temp != temp || cache_led != led0){

@@ -265,8 +265,12 @@ void * notify_thread_function(void *arg){
 		int humi ;
 		int temp ;
 		int led0 ;
-		while(0!=rpc_dht11_read(&humi,&temp));
-		while(0!=rpc_led_read(&led0));
+		while(0!=rpc_dht11_read(&humi,&temp)){
+			break;
+		}
+		while(0!=rpc_led_read(&led0)){
+			break;
+		}
 		/* read */
 		buf[0]=0xAB;
 		buf[1]=0xCD;

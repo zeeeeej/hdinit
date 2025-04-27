@@ -16,6 +16,7 @@ DELAY=1
 echo "==== Building lrpc ===="
 cd lipc
 make clean && make && sleep $DELAY
+adb push ../libs/libhdservice.so /lib
 cd ..
 
 # 进入mqtt_client目录编译并推送

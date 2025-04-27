@@ -28,6 +28,7 @@ static void opt_reboot_internal();
 static int op_stop_service_internal(HDService *service);
 static int op_check_service_update_internal(HDService *service, hd_http_check_resp *resp);
 static void hd_init_exit();
+static int do_stop_service_by_name(const char *service_name);
 static int upgrade_service(HDService *service);
 static void progress_callback(double progress);
 static int write_to_client(int client_fd, const char *buffer, size_t buffer_size);
@@ -1521,7 +1522,22 @@ static void ipc_init_on_heartbeat_lost_internal(const char * name,int index,time
     if (service->status != HD_SERVICE_STATUS_STARTED)
     {
         op_stop_service_internal(service);
+    	if (strcmp(HD_INIT_SERVICE_RPC, name) == 0){
+    		printf(" -------*------> on_rpc_service_exit\n");
+    		printf(" -------*------> on_rpc_service_exit\n");
+    		printf(" -------*------> on_rpc_service_exit\n");
+    		printf(" -------*------> on_rpc_service_exit\n");
+    		printf(" -------*------> on_rpc_service_exit\n");
+    		printf(" -------*------> on_rpc_service_exit\n");
+       		do_stop_service_by_name(HD_INIT_SERVICE_MQTT);
+        	do_stop_service_by_name(HD_INIT_SERVICE_UART);
+	 	do_stop_service_by_name(HD_INIT_SERVICE_QT);
+
+    	}
     }
+
+    
+
 }
 
 
@@ -1536,6 +1552,7 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
     stpncpy(service->version, service_version, strlen(service_version));
     service->status = HD_SERVICE_STATUS_STARTED;
     service->update = 0;
+    service->pid = service_pid;
     HD_LOGGER_ERROR(TAG, "[ipc_init_on_connected_internal] %s SERVICE-STARTED!!! %s %s\n", service_name, PREFIX, PREFIX);
     hd_service_array_print(&g_service_array);
     if (strcmp(HD_INIT_SERVICE_MAIN, service->name) == 0)
@@ -1564,7 +1581,7 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
 		}
 	 
 	 }
-
+	sleep(1);
 	HDService *old_uart_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_UART);
 	if(old_uart_service == NULL){
 	 	HDService uart_service = {
@@ -1585,6 +1602,7 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
 
 	}
 
+	sleep(1);
 	 HDService *old_qt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_QT);
         if(old_uart_service == NULL){
                 HDService qt_service = {
