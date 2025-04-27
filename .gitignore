@@ -8,6 +8,7 @@ server/files/
 build/
 libs/
 ota/
+server/files/
 bak/
 .hdinit/
 _hdinit/build/
