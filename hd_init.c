@@ -324,16 +324,19 @@ static int init_core_services()
         .depends_on = {}};
     hd_service_array_add(&g_service_array, &log_service);
 
-    HD_LOGGER_INFO(TAG, "init_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
-    HDService rpc_service = {
-        .name = HD_INIT_SERVICE_RPC,
-        .path = HD_INIT_SERVICE_RPC_PATH,
-        .status = HD_SERVICE_STATUS_STOPPED,
-        .type = HD_SERVICE_TYPE_MAIN,
-        .depends_on_count = 1,
-        .version = "0.0.0",
-        .depends_on = {HD_INIT_SERVICE_LOG}};
-    hd_service_array_add(&g_service_array, &rpc_service);
+    if (HD_CONTEXT == 0)
+    {
+        HD_LOGGER_INFO(TAG, "init_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+        HDService rpc_service = {
+            .name = HD_INIT_SERVICE_RPC,
+            .path = HD_INIT_SERVICE_RPC_PATH,
+            .status = HD_SERVICE_STATUS_STOPPED,
+            .type = HD_SERVICE_TYPE_MAIN,
+            .depends_on_count = 1,
+            .version = "0.0.0",
+            .depends_on = {HD_INIT_SERVICE_LOG}};
+        hd_service_array_add(&g_service_array, &rpc_service);
+    }
     return 0;
 }
 
@@ -1099,16 +1102,20 @@ static int start_core_services()
         HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_LOG, HD_INIT_SERVICE_LOG_PATH);
         return -1;
     }
-    sleep(1);
-
-    HD_LOGGER_INFO(TAG, "start_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
-    ret = op_start_service_by_name(HD_INIT_SERVICE_RPC);
-    if (ret < 0)
+    if (HD_CONTEXT ==0)
     {
-        HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
-        return -1;
+        sleep(1);
+        HD_LOGGER_INFO(TAG, "start_core_services[%s:%s] ...\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+        ret = op_start_service_by_name(HD_INIT_SERVICE_RPC);
+        if (ret < 0)
+        {
+            HD_LOGGER_ERROR(TAG, "start_core_services[%s:%s]start fail!\n", HD_INIT_SERVICE_RPC, HD_INIT_SERVICE_RPC_PATH);
+            return -1;
+        }
+        sleep(1);	
     }
-    sleep(1);	
+    
+
     // // 启动shell
     // HD_LOGGER_INFO(TAG, "start service[%s:%s] ...\n", HD_INIT_SERVICE_SHELL, HD_INIT_SERVICE_SHELL_PATH);
     // ret = op_start_service_by_name(HD_INIT_SERVICE_SHELL);
@@ -1531,7 +1538,7 @@ static void ipc_init_on_heartbeat_lost_internal(const char * name,int index,time
     		printf(" -------*------> on_rpc_service_exit\n");
        		do_stop_service_by_name(HD_INIT_SERVICE_MQTT);
         	do_stop_service_by_name(HD_INIT_SERVICE_UART);
-	 	do_stop_service_by_name(HD_INIT_SERVICE_QT);
+	 	    do_stop_service_by_name(HD_INIT_SERVICE_QT);
 
     	}
     }
@@ -1559,74 +1566,81 @@ static  void ipc_init_on_connected_internal(const char * service_name,int servic
     {
         start_main_service_count = 0;
     }
+   
     else if (strcmp(HD_INIT_SERVICE_RPC, service->name) == 0)
     {
-        // 启动hdmqtt hduart
-	 HDService *old_mqtt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_MQTT);
-	 if(old_mqtt_service == NULL){
-		HDService mqtt_service = {
-        	.name = HD_INIT_SERVICE_MQTT,
-       		 .path = HD_INIT_SERVICE_MQTT_PATH,
-        	.status = HD_SERVICE_STATUS_STOPPED,
-        	.type = HD_SERVICE_TYPE_SECONDARY,
-        	.depends_on_count = 1,
-       		.version = "0.0.0",
-        	.depends_on = {}};
-    		hd_service_array_add(&g_service_array, &mqtt_service);
-		op_start_service_internal(&mqtt_service);
-	 } else {
-	 	if(old_mqtt_service->status == HD_SERVICE_STATUS_STARTED){
-		}else{
-		  op_start_service_internal(old_mqtt_service);
-		}
-	 
-	 }
-	sleep(1);
-	HDService *old_uart_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_UART);
-	if(old_uart_service == NULL){
-	 	HDService uart_service = {
-        	.name = HD_INIT_SERVICE_UART,
-        	.path = HD_INIT_SERVICE_UART_PATH,
-        	.status = HD_SERVICE_STATUS_STOPPED,
-        	.type = HD_SERVICE_TYPE_SECONDARY,
-        	.depends_on_count = 1,
-        	.version = "0.0.0",
-        	.depends_on = {}};
-    		hd_service_array_add(&g_service_array, &uart_service);
-		op_start_service_internal(&uart_service);
-	} else {
-		if(old_uart_service->status == HD_SERVICE_STATUS_STARTED){
+         if (HD_CONTEXT==0){
+
+         
+    
+                // 启动hdmqtt hduart
+            HDService *old_mqtt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_MQTT);
+            if(old_mqtt_service == NULL){
+                HDService mqtt_service = {
+                    .name = HD_INIT_SERVICE_MQTT,
+                    .path = HD_INIT_SERVICE_MQTT_PATH,
+                    .status = HD_SERVICE_STATUS_STOPPED,
+                    .type = HD_SERVICE_TYPE_SECONDARY,
+                    .depends_on_count = 1,
+                    .version = "0.0.0",
+                    .depends_on = {}};
+                    hd_service_array_add(&g_service_array, &mqtt_service);
+                op_start_service_internal(&mqtt_service);
+            } else {
+                if(old_mqtt_service->status == HD_SERVICE_STATUS_STARTED){
                 }else{
-                  op_start_service_internal(old_uart_service);
+                op_start_service_internal(old_mqtt_service);
                 }
+            
+            }
+            sleep(1);
+            HDService *old_uart_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_UART);
+            if(old_uart_service == NULL){
+                HDService uart_service = {
+                    .name = HD_INIT_SERVICE_UART,
+                    .path = HD_INIT_SERVICE_UART_PATH,
+                    .status = HD_SERVICE_STATUS_STOPPED,
+                    .type = HD_SERVICE_TYPE_SECONDARY,
+                    .depends_on_count = 1,
+                    .version = "0.0.0",
+                    .depends_on = {}};
+                    hd_service_array_add(&g_service_array, &uart_service);
+                op_start_service_internal(&uart_service);
+            } else {
+                if(old_uart_service->status == HD_SERVICE_STATUS_STARTED){
+                        }else{
+                        op_start_service_internal(old_uart_service);
+                        }
 
-	}
+            }
 
-	sleep(1);
-	 HDService *old_qt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_QT);
-        if(old_uart_service == NULL){
-                HDService qt_service = {
-                .name = HD_INIT_SERVICE_QT,
-                .path = HD_INIT_SERVICE_QT_PATH,
-                .status = HD_SERVICE_STATUS_STOPPED,
-                .type = HD_SERVICE_TYPE_SECONDARY,
-                .depends_on_count = 1,
-                .version = "0.0.0",
-                .depends_on = {}};
-                hd_service_array_add(&g_service_array, &qt_service);
-                op_start_service_internal(&qt_service);
-        } else {
-                if(old_qt_service->status == HD_SERVICE_STATUS_STARTED){
-                }else{
-                  op_start_service_internal(old_qt_service);
+            sleep(1);
+            HDService *old_qt_service =  hd_service_array_find_by_name(&g_service_array,HD_INIT_SERVICE_QT);
+                if(old_uart_service == NULL){
+                        HDService qt_service = {
+                        .name = HD_INIT_SERVICE_QT,
+                        .path = HD_INIT_SERVICE_QT_PATH,
+                        .status = HD_SERVICE_STATUS_STOPPED,
+                        .type = HD_SERVICE_TYPE_SECONDARY,
+                        .depends_on_count = 1,
+                        .version = "0.0.0",
+                        .depends_on = {}};
+                        hd_service_array_add(&g_service_array, &qt_service);
+                        op_start_service_internal(&qt_service);
+                } else {
+                        if(old_qt_service->status == HD_SERVICE_STATUS_STARTED){
+                        }else{
+                        op_start_service_internal(old_qt_service);
+                        }
+
                 }
-
-        }
+            }
 
 
 //	int ret = start_qt();
 //	HD_LOGGER_ERROR(TAG,"======== > >>>>>>>>start_qt() fail!");
     }
+    
     g_blocking = 0;
 }
 

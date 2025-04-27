@@ -1,14 +1,25 @@
 # Compiler and flags
-CC = gcc
+#CC = gcc
 
-LIBEV_DIR=/Users/xiangpengle/Documents/linux/res/libev/libev_pc/tmp2
-JSONRPC_DIR=/Users/xiangpengle/Documents/linux/res/jsonrpc/jsonrpc-c_pc/tmp2
+
+# imx6ull
+CC = arm-buildroot-linux-gnueabihf-gcc
+LIBEV_DIR=/home/book/source/libev/libev_pc/tmp
+JSONRPC_DIR=/home/book/source/jsonrpc/jsonrpc-c_pc/tmp
+
+
+#CFLAGS = -I/usr/local/imx6ull/curl/include -I/usr/local/imx6ull/ssl/include 
+#LDFLAGS = -L/usr/local/imx6ull/curl/lib -L/usr/local/imx6ull/ssl/liba 
+
+# 注意库的顺序
+LDFLAGS = -L/usr/local/imx6ull/ssl/lib -L/usr/local/imx6ull/curl/liba 
+CFLAGS = -I/usr/local/imx6ull/ssl/include -I/usr/local/imx6ull/curl/include 
 
 CFLAGS +=-I${LIBEV_DIR}/include -I${JSONRPC_DIR}/include
 LDFLAGS += -L${JSONRPC_DIR}/lib -L${LIBEV_DIR}/lib
 
 CFLAGS += -I./includes # -Wall -Wextra
-LDFLAGS += -L./libs -lcurl -ljsonrpcc -lev -lhdsafemap -lpthread -lc -lm
+LDFLAGS += -L./libs -lcurl -ljsonrpcc -lev -lhdsafemap -lpthread -lc -lm -lssl -lcrypto
 
 # Source directories and files
 SRC_DIR = .
